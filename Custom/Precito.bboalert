@@ -1,0 +1,8 @@
+BBOalert, 27-05-2022 Precito
+Javascript,https://github.com/Thorvald Aagaard/BBOalert/blob/master/Plugins/stanmazPlugin.js
+Script,onBiddingBoxDisplayed,getExplainInput().setAttribute("maxlength", "69");
+Option,Entire system
+Import,https://github.com/Thorvald Aagaard/BBOalert/blob/master/Custom/shortcuts.bboscript
+Import,https://github.com/Thorvald Aagaard/BBOalert/blob/master/Custom/shortcut_sonny.bboscript
+Import,https://github.com/Thorvald Aagaard/BBOalert/blob/master/Custom/precito.system
+Javascript,https://github.com/Thorvald Aagaard/BBOalert/blob/master/Custom/focusoptions.js
