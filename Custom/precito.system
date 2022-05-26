@@ -83013,5 +83013,4 @@ Script, UC0026482, R =  "(1C--1D2C----Db--2N--3C--3D--3S--4H--|1C--1D2C2N--3C--3
 Script, UC0145818, R =  "(1C--2S--2N--3C--3H--3S--|1CDb2S--2N--3C--3H--3S--|1CDb2S--2N--3C--3H--3S--|1CDb2S--2N--3C--3H--3S--|1C1D2S--2N--3C--3H--3S--|----1C--2S--2N--3C--3H--3S--)"
 Script, UC0145824, R =  "(1C--2S--2N--3C--3H--3S--|1CDb2S--2N--3C--3H--3S--|1CDb2S--2N--3C--3H--3S--|1CDb2S--2N--3C--3H--3S--|1C1D2S--2N--3C--3H--3S--|----1C--2S--2N--3C--3H--3S--)"
 Script, UC0168355, R =  "(1C2S4C--|1C3C4C--)"
-Option,RecordedBids OFF
-Option,RecordedBids ON
+
