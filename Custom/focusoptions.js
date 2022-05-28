@@ -27,8 +27,15 @@ setTimeout(() => {
     if (($('#bboalert-ds')[0].selectedIndex != 2) && stripContext(getContext()) == "2D") { setOptionsOn(); $('#bttab-options')[0].click(); $("button[id^='Option,']").hide(); $("button[id^='Option,vs_(2D)']").show(); }
     if (($('#bboalert-ds')[0].selectedIndex != 2) && stripContext(getContext()) == "2C") { setOptionsOn(); $('#bttab-options')[0].click(); $("button[id^='Option,']").hide(); $("button[id^='Option,vs_(2C)']").show(); }
     if (($('#bboalert-ds')[0].selectedIndex != 2) && stripContext(getContext()) == "1S") { setOptionsOn(); $('#bttab-options')[0].click(); $("button[id^='Option,']").hide(); $("button[id^='Option,vs_(1S)']").show(); }
+    if (($('#bboalert-ds')[0].selectedIndex != 2) && stripContext(getContext()) == "1S--3C") { setOptionsOn(); $('#bttab-options')[0].click(); $("button[id^='Option,']").hide(); $("button[id^='Option,vs_1S-P-(3C)']").show(); }
+    if (($('#bboalert-ds')[0].selectedIndex != 2) && stripContext(getContext()) == "1S--3D") { setOptionsOn(); $('#bttab-options')[0].click(); $("button[id^='Option,']").hide(); $("button[id^='Option,vs_1S-P-(3D)']").show(); }
+    if (($('#bboalert-ds')[0].selectedIndex != 2) && stripContext(getContext()) == "1S--3S") { setOptionsOn(); $('#bttab-options')[0].click(); $("button[id^='Option,']").hide(); $("button[id^='Option,vs_1S-P-(3S)']").show(); }
     if (($('#bboalert-ds')[0].selectedIndex != 2) && stripContext(getContext()) == "1H") { setOptionsOn(); $('#bttab-options')[0].click(); $("button[id^='Option,']").hide(); $("button[id^='Option,vs_(1H)']").show(); }
+    if (($('#bboalert-ds')[0].selectedIndex != 2) && stripContext(getContext()) == "1H--3C") { setOptionsOn(); $('#bttab-options')[0].click(); $("button[id^='Option,']").hide(); $("button[id^='Option,vs_1H-P-(3C)']").show(); }
+    if (($('#bboalert-ds')[0].selectedIndex != 2) && stripContext(getContext()) == "1H--3H") { setOptionsOn(); $('#bttab-options')[0].click(); $("button[id^='Option,']").hide(); $("button[id^='Option,vs_1H-P-(3H)']").show(); }
     if (($('#bboalert-ds')[0].selectedIndex != 2) && stripContext(getContext()) == "1D") { setOptionsOn(); $('#bttab-options')[0].click(); $("button[id^='Option,']").hide(); $("button[id^='Option,vs_(1D)']").show(); }
+    if (($('#bboalert-ds')[0].selectedIndex != 2) && stripContext(getContext()) == "1D--2D") { setOptionsOn(); $('#bttab-options')[0].click(); $("button[id^='Option,']").hide(); $("button[id^='Option,vs_1D-P-(2D)']").show(); }
     if (($('#bboalert-ds')[0].selectedIndex != 2) && stripContext(getContext()) == "1C") { setOptionsOn(); $('#bttab-options')[0].click(); $("button[id^='Option,']").hide(); $("button[id^='Option,vs_(1C)']").show(); }
+    if (($('#bboalert-ds')[0].selectedIndex != 2) && stripContext(getContext()) == "1C--2C") { setOptionsOn(); $('#bttab-options')[0].click(); $("button[id^='Option,']").hide(); $("button[id^='Option,vs_1C-P-(2C)']").show(); }
 }, 100);
 Script, onBiddingBoxHidden, setOptionsOff();

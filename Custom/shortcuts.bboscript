@@ -30,3 +30,4 @@ Shortcut,One A, 1 Ace\n, width=50% backgroundColor=blanchedalmond
 Shortcut,Two A, 2 Aces\n, width=50% backgroundColor=lightgreen
 Shortcut,Three A, 3 Aces\n, width=50% backgroundColor=tan 
 Shortcut,Four A, 4 Aces\n, width=50% backgroundColor=lightblue
+Shortcut,ALA, Ace = Attitude. King asking for count (UDCA). Queen for attitude;\n, width=33% backgroundColor=palegreen
