@@ -1,7 +1,8 @@
-BBOalert, 27-05-2022 Precito
+BBOalert, 04-06-2022 01:18:06 Precito
 Javascript,https://github.com/ThorvaldAagaard/BBOalert/blob/master/Plugins/stanmazPlugin.js
 Script,onBiddingBoxDisplayed,getExplainInput().setAttribute("maxlength", "69");
 Option,Entire system
+Import,https://github.com/ThorvaldAagaard/BBOalert/blob/master/Custom/buttonsd.bboscript
 Import,https://github.com/ThorvaldAagaard/BBOalert/blob/master/Custom/shortcuts.bboscript
 Import,https://github.com/ThorvaldAagaard/BBOalert/blob/master/Custom/shortcut_sonny.bboscript
 Import,https://github.com/ThorvaldAagaard/BBOalert/blob/master/Custom/precito.system
