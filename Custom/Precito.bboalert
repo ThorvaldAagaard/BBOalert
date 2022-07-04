@@ -1,6 +1,13 @@
 BBOalert, 04-06-2022 01:18:06 Precito
 Javascript,https://github.com/ThorvaldAagaard/BBOalert/blob/master/Plugins/stanmazPlugin.js
 Script,onBiddingBoxDisplayed,getExplainInput().setAttribute("maxlength", "69");
+Script,onDataLoad
+$("#adpanel button").each(function() {
+if(this.id.includes("@s")) return;
+this.innerHTML = this.innerText;
+this.id = "Option," + this.textContent;
+});
+Script
 Option,Entire system
 Import,https://github.com/ThorvaldAagaard/BBOalert/blob/master/Custom/buttonsd.bboscript
 Import,https://github.com/ThorvaldAagaard/BBOalert/blob/master/Custom/shortcuts.bboscript
