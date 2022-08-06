@@ -24,7 +24,7 @@ selectOptionsDisplay = function (ctx = "", opt = "", parent = "") {
         }
     }
 };
-var filterOptions = function () {
+filterOptions = function () {
     selectOptionsDisplay("1C", "vs_(1C)");
     selectOptionsDisplay("1D", "vs_(1D)");
     selectOptionsDisplay("1H", "vs_(1H)");
@@ -67,6 +67,7 @@ var filterOptions = function () {
 Script
 Script, onBiddingBoxDisplayed
 setTimeout(() => {
+    debugger;
     filterOptions();
 }, 100);
 Script, onBiddingBoxHidden, setOptionsOff();
