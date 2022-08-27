@@ -67,7 +67,6 @@ filterOptions = function () {
 Script
 Script, onBiddingBoxDisplayed
 setTimeout(() => {
-    debugger;
     filterOptions();
 }, 100);
 Script, onBiddingBoxHidden, setOptionsOff();

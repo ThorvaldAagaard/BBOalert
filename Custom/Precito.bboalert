@@ -7,6 +7,7 @@ if(this.id.includes("@s")) return;
 this.innerHTML = this.innerText;
 this.id = "Option," + this.textContent;
 });
+setOptionsOn();
 $("bboalert-ds").val('Disable-Alerts');
 $('.verticalClass',window.parent.document)[0].click();
 setTimeout(setOptionsOff,1000);
