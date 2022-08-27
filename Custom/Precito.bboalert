@@ -7,6 +7,8 @@ if(this.id.includes("@s")) return;
 this.innerHTML = this.innerText;
 this.id = "Option," + this.textContent;
 });
+$('.verticalClass',window.parent.document)[0].click();
+setTimeout(setOptionsOff,1000);
 Script
 Option,Entire system
 Import,https://github.com/ThorvaldAagaard/BBOalert/blob/master/Custom/buttons.bboscript
