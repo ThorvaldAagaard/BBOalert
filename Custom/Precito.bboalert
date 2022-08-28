@@ -1,14 +1,17 @@
 BBOalert, 29-07-2022 01:47:19 Precito
 Javascript,https://github.com/stanmaz/BBOalert/blob/master/Plugins/stanmazPluginMV3.js
 Script,onBiddingBoxDisplayed,getExplainInput().setAttribute("maxlength", "69");
-Script,onDataLoad
+Script
+Script,onNavDisplayed
 $("#adpanel button").each(function() {
 if(this.id.includes("@s")) return;
 this.innerHTML = this.innerText;
 this.id = "Option," + this.textContent;
 });
-//setOptionsOn();
-//$("bboalert-ds").val('Disable-Alerts');
+setOptionsOn();
+var optionsSelector = document.getElementById('bboalert-ds');
+optionsSelector.selectedIndex = 2;
+optionsSelectorChanged();
 $('.verticalClass',window.parent.document)[0].click();
 setTimeout(setOptionsOff,1000);
 Script
