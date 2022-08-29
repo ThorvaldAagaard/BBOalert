@@ -3,7 +3,6 @@ Javascript,https://github.com/stanmaz/BBOalert/blob/master/Plugins/stanmazPlugin
 Script,onBiddingBoxDisplayed,getExplainInput().setAttribute("maxlength", "69");
 Script
 Script,onDataLoad
-alert("onDataLoad called")
 $("#adpanel button").each(function() {
 if(this.id.includes("@s")) return;
 this.innerHTML = this.innerText;
