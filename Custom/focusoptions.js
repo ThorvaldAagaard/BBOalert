@@ -1,6 +1,6 @@
 Option, Locate Ambiguous bids
 Script, onDataLoad
-var findOptionByLabel = function (label) {
+findOptionByLabel = function (label) {
     return $('button').filter(function () {
         return $(this).text() == label;
     });
@@ -56,6 +56,10 @@ filterOptions = function () {
     selectOptionsDisplay("1C2H", "vs_1C-(2H)");
     selectOptionsDisplay("1C2S", "vs_1C-(2S)");
     selectOptionsDisplay("1C2N", "vs_1C-(2N)");
+    selectOptionsDisplay("1C3S", "vs_1C-(3S)");
+    selectOptionsDisplay("1C4C", "vs_1C-(4C)");
+    selectOptionsDisplay("1C4S", "vs_1C-(4S)");
+    selectOptionsDisplay("1C5C", "vs_1C-(5C)");
     selectOptionsDisplay("1D2D", "vs_1D-(2D)");
     selectOptionsDisplay("1H2H", "vs_1H-(2H)");
     selectOptionsDisplay("1NDb", "vs_1N-(Db)");

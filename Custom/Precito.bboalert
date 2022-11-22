@@ -1,5 +1,5 @@
-BBOalert, 29-07-2022 01:47:19 Precito
-Javascript,https://github.com/stanmaz/BBOalert/blob/master/Plugins/stanmazPluginMV3.js
+BBOalert, 22-11-2022 01:47:19 Precito
+Javascript,https://github.com/stanmaz/BBOalert/blob/master/Plugins/stanmazPlugin.js
 Script,onBiddingBoxDisplayed,getExplainInput().setAttribute("maxlength", "69");
 Script
 Script,onDataLoad

@@ -1,4 +1,4 @@
-BBOalert, 27-05-2022 Precito
+BBOalert, 22-11-2022 Precito
 Script,onBiddingBoxDisplayed,getExplainInput().setAttribute("maxlength", "69");
 Script,onDataLoad
 $("#adpanel button").each(function() {

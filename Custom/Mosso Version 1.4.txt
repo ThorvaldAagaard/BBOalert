@@ -1,5 +1,5 @@
 ﻿BBOalert, 10-07-2022 17:07:55 Mosso Version 1.4
-Javascript,https://github.com/stanmaz/BBOalert/blob/master/Plugins/stanmazPlugin.js
+Javascript,https://github.com/stanmaz/BBOalert/blob/master/Plugins/stanmazPluginMV3.js
 Option,Entire system
 Option
  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX 
