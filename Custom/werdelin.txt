@@ -1,5 +1,5 @@
 ﻿BBOalert, 16-01-2023 14:21:22 Stig Werdelin
-Javascript,https://github.com/stanmaz/BBOalert/blob/master/Plugins/stanmazPluginMV3.js
+Javascript,https://github.com/stanmaz/BBOalert/blob/master/Plugins/stanmazPlugin.js
 Option,Entire system
 Shortcut,Shortcuts for the CHAT box, , width=100% backgroundColor=palegreen
 Shortcut,w_w, We are Stig and Thorvald. \nWe play 5-card Major (5533)\n1NT = 12-14 hcp (5-card major allowed) (3rd hand 15-17 unless favorable). \nWeak 2's\nLeads 3./5. and UDCA \n
