@@ -1,4 +1,4 @@
-﻿BBOalert, 16-01-2023 14:21:22 Stig Werdelin
+﻿BBOalert, 04-05-2023 01:57:59 Stig Werdelin
 Javascript,https://github.com/stanmaz/BBOalert/blob/master/Plugins/stanmazPlugin.js
 Option,Entire system
 Shortcut,Shortcuts for the CHAT box, , width=100% backgroundColor=palegreen
@@ -1817,6 +1817,8 @@ Option
 %UC0026129% 4N--5S--5N--,6D,!DK and extra
 %UC0026129% 4N--5S--5N--,6H,!HK and extra
 %UC0026129% 4N--5S--5N--,6S,!SK and extra
+%UC0026129% 4N--,5N,A Void and odd no of keycards
+%UC0026129% 4N--,6C,A Void and even no of keycards
 ----1D--1S--,1N,15-17
 ----1D--1S--1N--,2C,Transfer; Inv or to play
 ----1D--1S--1N--2C--,2D,As requested
@@ -2048,6 +2050,7 @@ Option
 ----1S--,2C,Nat; 10+ hcp
 ----1S--2C--2H--,3D,4SF
 ----1S--2C--2H--3D--,3H,No better bid
+----1S--2C--2H--3D--3H--,4N,Quantitative
 ----1S--2C--2H--3D--,3S,6+!S
 ----1S--2C--2H--3D--,3N,Nat; stopper in !D
 ----1S--2C--2H--3D--,4C,3!C
@@ -2070,6 +2073,7 @@ Option
 ----1S--2H--3H--3S--,4C,Single
 ----1S--2H--3H--3S--,4D,Single
 ----1S--2H--3S--,4C,Cue agreeing !S
+----1S--2H--3S--,4N,RKCB-1430
 ----1S--2H--,3N,3+!H; slammish
 ----1S--2H--,4C,Splint; min
 ----1S--2H--,4D,Splint; min
@@ -2957,6 +2961,7 @@ Option
 1S--,2C,Nat; 10+ hcp
 1S--2C--2H--,3D,4SF
 1S--2C--2H--3D--,3H,No better bid
+1S--2C--2H--3D--3H--,4N,Quantitative
 1S--2C--2H--3D--,3S,6+!S
 1S--2C--2H--3D--,3N,Nat; stopper in !D
 1S--2C--2H--3D--,4C,3!C
@@ -2981,6 +2986,7 @@ Option
 1S--2H--3H--3S--,4C,Single
 1S--2H--3H--3S--,4D,Single
 1S--2H--3S--,4C,Cue agreeing !S
+1S--2H--3S--,4N,RKCB-1430
 1S--2H--,3N,3+!H; slammish
 1S--2H--,4C,Splint; min
 1S--2H--,4D,Splint; min
@@ -3047,6 +3053,7 @@ Option
 1SDb,2C,Nat; 10+ hcp
 1SDb2C--2H--,3D,4SF
 1SDb2C--2H--3D--,3H,No better bid
+1SDb2C--2H--3D--3H--,4N,Quantitative
 1SDb2C--2H--3D--,3S,6+!S
 1SDb2C--2H--3D--,3N,Nat; stopper in !D
 1SDb2C--2H--3D--,4C,3!C
@@ -3069,6 +3076,7 @@ Option
 1SDb2H--3H--3S--,4C,Single
 1SDb2H--3H--3S--,4D,Single
 1SDb2H--3S--,4C,Cue agreeing !S
+1SDb2H--3S--,4N,RKCB-1430
 1SDb2H--,3N,3+!H; slammish
 1SDb2H--,4C,Splint; min
 1SDb2H--,4D,Splint; min
@@ -3108,6 +3116,7 @@ Option
 1S2C2H--3H--3S--,4C,Single
 1S2C2H--3H--3S--,4D,Single
 1S2C2H--3S--,4C,Cue agreeing !S
+1S2C2H--3S--,4N,RKCB-1430
 1S2C2H--,3N,3+!H; slammish
 1S2C2H--,4C,Splint; min
 1S2C2H--,4D,Splint; min
@@ -3169,6 +3178,7 @@ Option
 1S2D2H--3H--3S--,4C,Single
 1S2D2H--3H--3S--,4D,Single
 1S2D2H--3S--,4C,Cue agreeing !S
+1S2D2H--3S--,4N,RKCB-1430
 1S2D2H--,3N,3+!H; slammish
 1S2D2H--,4C,Splint; min
 1S2D2H--,4D,Splint; min
@@ -3847,3 +3857,4 @@ Script,onBiddingBoxHidden,setOptionsOff();
 Option
 Option,RecordedBids OFF
 Option,RecordedBids ON
+

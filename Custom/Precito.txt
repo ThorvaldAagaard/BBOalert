@@ -1,3 +1,65 @@
+﻿BBOalert, 04-05-2023 02:00:27 Precito
+Javascript,https://github.com/stanmaz/BBOalert/blob/master/Plugins/stanmazPlugin.js
+Option,Entire system
+Shortcut,Welcome message, , width=100% backgroundColor=palegreen
+Shortcut,w_w, We are Sonny and Thorvald and play Strong !C (Precito); but open lighter than most \n1!C is 17+ hcp if BAL or 14+ hcp (or equivalent) if non-BAL; Most positive hands (6)7+ hcp respond 1!D - this is NOT GF\n1!D is 0+!D - (9)10-12(13-) bal or 10-13 5!C+4 any or 5+!D + 4 major or any 4441)\n1!H/!S=5+-card and following rule of 18; and normally less than 14 hcp\n1NT = 13+-16 "bal"-ish; 5-card major included \n2!C=6+!C 9-13 hcp and 2!D=5+!D unbal 9-13 hcp; no major so either 6+!D or 4+!C\n2N=55+ without !C - below opening range\nLeads vs. suit 3./5. vs NT 2./4. with attitude. Ace asking for attitude. King for count (UDCA). Queen for attitude.\nWe grade hands a lot - semi bal with points in the long suits tend to be treated as unbalanced; with points in the short suits treated as balanced\n Honors in long suits will be upgraded and for balanced hands we mostly follow hcp-count\nHCP is a guide - actually a VERY bad guide - and certainly not a prescription\nTactical bids outside length and range agreements might occur\n, width=34% backgroundColor=greenyellow
+Shortcut,dvv, Vi spiller Precision-agtigt; \n1!C er 0+!c 14+ ubal eller 17+ bal.\n1!D lover 0+!D (9)10-12(13-) bal eller 10-13 5!C+4any eller 5+!D + 4major)\n1NT = 13-16 "bal"-ish.\nUdspil mod farve 3./5. mod NT 2./4. med attitude.\nMalmø-markering i uinteressant farve \nVi op- og nedgraderer en del\n, width=33% backgroundColor=lightgreen
+shortcut,Casual, set "Permission required to play" in the table options and put "+private+ +nokill+ +slow+" in the Description of the table when you create it (near the top of the create window).
+Shortcut,Shortcuts for the CHAT box, , width=100% backgroundColor=palegreen
+Shortcut,Thinking, Thinking, Whole hand\n, width=50% backgroundColor=peachpuff
+Shortcut,UDCA, Upside down count, attitude\n, width=50% backgroundColor=gold
+Shortcut,Standard Carding, Standard carding. Good Luck. \n, width=50% backgroundColor=antiquewhite
+Shortcut,glp, Good luck partner \n, width=50% backgroundColor=skyblue
+Shortcut,Thank you, Thank You. \n, width=50% backgroundColor=greenyellow
+Shortcut,wdp, Well done partner\n, width=50%  backgroundColor=pink
+Shortcut,wdo, Well done opponents\n, width=50% backgroundColor=violet
+Shortcut,brb, Be right back\n, width=50% backgroundColor=papayawhip
+Shortcut,For SLAM bidding to ALERT box, , width=100% backgroundColor=palegreen
+Shortcut,KCA, Asking for Key cards\n, width=50% backgroundColor=yellow
+Shortcut,K ask,Asking about Ks\n, width=50% backgroundColor=white
+Shortcut,0 or 3 Key Cards, 0 or 3 Key cards\n, width=50% backgroundColor=peachpuff
+Shortcut,1 or 4 Key Cards, 1 or 4 Key cards\n, width=50% backgroundColor=thistle
+Shortcut,2 or 5 Key Cards no Q, 2 or 5 Key cards without Q\n, width=50% backgroundColor=burlywood
+Shortcut,2 or 5 Key Cards with Q, 2 or 5 Key cards with Q\n, width=50% backgroundColor=peachpuff
+Shortcut,Q ask, Asking about Q of trumps\n, width=50% backgroundColor=lightblue
+Shortcut,no Q, denying Q of trumps\n, width=50% backgroundColor=lightgreen
+Shortcut,Q no K, Have Q but no Kings\n, width=50% backgroundColor=khaki
+Shortcut,Q with K of bid suit, Have Q and K of bid suit\n, width=50% backgroundColor=lightblue
+Shortcut,K of bid suit, K of bid suit\n, width=50% backgroundColor=darkkhaki
+Shortcut,One K, 1 King\n, width=50% backgroundColor=cornflowerblue
+Shortcut,Two K, 2 Kings\n, width=50% backgroundColor=lightpink
+Shortcut,Three K, 3 Kings\n, width=50% backgroundColor=lightsalmon
+Shortcut,A ask, Asking about Aces\n, width=50% backgroundColor=aqua
+Shortcut,Zero A, No Aces\n, width=50% backgroundColor=peachpuff
+Shortcut,One A, 1 Ace\n, width=50% backgroundColor=blanchedalmond
+Shortcut,Two A, 2 Aces\n, width=50% backgroundColor=lightgreen
+Shortcut,Three A, 3 Aces\n, width=50% backgroundColor=tan 
+Shortcut,Four A, 4 Aces\n, width=50% backgroundColor=lightblue
+Shortcut,ALA, Ace = Attitude. King asking for count (UDCA). Queen for attitude;\n, width=33% backgroundColor=palegreen
+Button,Transfer, Transfer to,backgroundColor=yellow width=40% fontSize=32px borderRadius=100%
+Button,♣, !C,width=11% fontSize=32px borderRadius=100%
+Button,♦, !D,width=11% fontSize=32px borderRadius=100% color=red
+Button,♥, !H,width=11% fontSize=32px borderRadius=100% color=red
+Button,♠, !S,width=11% fontSize=32px borderRadius=100%
+Button,NT, NT,borderRadius=100% width=16% fontSize=32px
+Button,Send, \n,borderRadius=100% width=40% fontSize=32px
+Button,Emoticons,,width=100% backgroundColor=palegreen fontSize=16px
+Button,😀,😀\n,width= borderRadius=100% fontSize=32px
+Button,😞,😞\n,width= borderRadius=100% fontSize=32px
+Button,😢,😢\n,width= borderRadius=100% fontSize=32px
+Button,👍,👍\n,width= borderRadius=100% fontSize=32px
+Button,👎,👎\n,width= borderRadius=100% fontSize=32px
+Button,😊,😊\n,width= borderRadius=100% fontSize=32px
+Button,👏,👏\n,width= borderRadius=100% fontSize=32px
+Script,onBiddingBoxDisplayed,getExplainInput().setAttribute("maxlength", "69");
+## Script,onExplainCallDisplayed,setExplainCallText("");
+Script,onDataLoad
+$("#adpanel button").each(function() {
+if(this.id.includes("@s")) return;
+this.innerHTML = this.innerText;
+this.id = "Option," + this.textContent;
+});
+Script
 Option,vs (1C) @s
 Option,vs_(1C) Nat (4+<span style="color: green; font-size: large;">♣</span>) 
 Option,vs_(1C) 2+<span style="color: green; font-size: large;">♣</span> (Polish Club) 
@@ -69722,3 +69784,83 @@ Script, UC0168355, R =  "(1C3C4C--)"
 Script, UC0046100, R =  "(1N2C)"
 Script, UC0061595, R =  "(1N)"
 Script, UC0027389, R =  "(3D--)"
+Option,Locate Ambiguous bids
+Script,onDataLoad
+findOptionByLabel = function (label) {
+   return $('button').filter(function() {
+      return $(this).text() == label;
+   });
+};
+selectOptionsDisplay = function (ctx="", opt="", parent="") {
+  if (($('#bboalert-ds')[0].selectedIndex!=2)&&(matchContext(ctx, stripContext(getContext())))) {
+    setOptionsOn();
+    $('#bttab-options')[0].click();
+    if (parent == '') {
+       $("button[id^='Option,']").hide();       $("button[id^='Option," + opt +"']").show();
+    } else {
+       var optx = findOptionByLabel(parent);
+       if (optx.length == 0) return;
+       if (optx[0].style.backgroundColor == "lightgreen") {
+         $("button[id^='Option," + opt +"']").attr("optionActive", true);
+         $("button[id^='Option," + opt +"']").show();
+       } else {
+         $("button[id^='Option," + opt +"']").attr("optionActive", false);
+         $("button[id^='Option," + opt +"']").hide();
+       }
+    }
+  }
+};
+filterOptions = function () {
+  selectOptionsDisplay("1C","vs_(1C)");
+  selectOptionsDisplay("1D","vs_(1D)");
+  selectOptionsDisplay("1H","vs_(1H)");
+  selectOptionsDisplay("1S","vs_(1S)");
+  selectOptionsDisplay("2C","vs_(2C)");
+  selectOptionsDisplay("2D","vs_(2D)");
+  selectOptionsDisplay("2H","vs_(2H)");
+  selectOptionsDisplay("2S","vs_(2S)");
+  selectOptionsDisplay("2N","vs_(2N)");
+  selectOptionsDisplay("3C","vs_(3C)");
+  selectOptionsDisplay("3D","vs_(3D)");
+  selectOptionsDisplay("3H","vs_(3H)");
+  selectOptionsDisplay("4C","vs_(4C)");
+  selectOptionsDisplay("4D","vs_(4D)");
+  selectOptionsDisplay("1C--2C","vs_(1C)-P-(2C)");
+  selectOptionsDisplay("1D--1H","vs_(1D)-P-(1H)");
+  selectOptionsDisplay("1D--2D","vs_(1D)-P-(2D)");
+  selectOptionsDisplay("1H--3C","vs_(1H)-P-(3C)");
+  selectOptionsDisplay("1H--3H","vs_(1H)-P-(3H)");
+  selectOptionsDisplay("1S--3C","vs_(1S)-P-(3C)");
+  selectOptionsDisplay("1S--3D","vs_(1S)-P-(3D)");
+  selectOptionsDisplay("1S--3S","vs_(1S)-P-(3S)");
+  selectOptionsDisplay("1CDb","vs_1C-(Db)");
+  selectOptionsDisplay("1C1H","vs_1C-(1H)");
+  selectOptionsDisplay("1C1S","vs_1C-(1S)");
+  selectOptionsDisplay("1C1N","vs_1C-(1N)");
+  selectOptionsDisplay("1C2C","vs_1C-(2C)");
+  selectOptionsDisplay("1C2D","vs_1C-(2D)");
+  selectOptionsDisplay("1C2H","vs_1C-(2H)");
+  selectOptionsDisplay("1C2S","vs_1C-(2S)");
+  selectOptionsDisplay("1C2N","vs_1C-(2N)");
+  selectOptionsDisplay("1C3S","vs_1C-(3S)");
+  selectOptionsDisplay("1C4C","vs_1C-(4C)");
+  selectOptionsDisplay("1C4S","vs_1C-(4S)");
+  selectOptionsDisplay("1C5C","vs_1C-(5C)");
+  selectOptionsDisplay("1D2D","vs_1D-(2D)");
+  selectOptionsDisplay("1H2H","vs_1H-(2H)");
+  selectOptionsDisplay("1NDb","vs_1N-(Db)");
+  selectOptionsDisplay("1N2C","vs_1N-(2C)");
+  selectOptionsDisplay("1N2D","vs_1N-(2D)");
+  selectOptionsDisplay("1N2H","vs_1N-(2H)");
+  selectOptionsDisplay("1N2S","vs_1N-(2S)");
+};
+Script
+Script,onBiddingBoxDisplayed
+  setTimeout(() => {
+  filterOptions();
+}, 1000);    
+Script,onBiddingBoxHidden,setOptionsOff();
+Option
+Option,RecordedBids OFF
+Option,RecordedBids ON
+

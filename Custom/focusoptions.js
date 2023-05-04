@@ -68,10 +68,13 @@ filterOptions = function () {
     selectOptionsDisplay("1N2H", "vs_1N-(2H)");
     selectOptionsDisplay("1N2S", "vs_1N-(2S)");
 };
-Script, onRHOAuction
+Script
+Script, onBiddingBoxDisplayed
 setTimeout(() => {
     filterOptions();
-}, 100);
-Script, onMyAuction, setOptionsOff(); optionsSelectorChanged();
+}, 1000);
+Script, onBiddingBoxHidden, setOptionsOff();
 Option
+Option, RecordedBids OFF
+Option, RecordedBids ON
 
