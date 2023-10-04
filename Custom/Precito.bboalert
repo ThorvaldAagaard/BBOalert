@@ -16,7 +16,6 @@ Script
 Option,Entire system
 Import,https://github.com/ThorvaldAagaard/BBOalert/blob/master/Custom/buttons.bboscript
 Import,https://github.com/ThorvaldAagaard/BBOalert/blob/master/Custom/shortcuts.bboscript
-Import,https://github.com/ThorvaldAagaard/BBOalert/blob/master/Custom/shortcut_sonny.bboscript
 Import,https://github.com/ThorvaldAagaard/BBOalert/blob/master/Custom/precito.system
 Import,https://github.com/ThorvaldAagaard/BBOalert/blob/master/Custom/focusoptions.js
 Option,RecordedBids OFF

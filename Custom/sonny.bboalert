@@ -9,5 +9,6 @@ this.id = "Option," + this.textContent;
 Script
 Option,Entire system
 Import,https://github.com/ThorvaldAagaard/BBOalert/blob/master/Custom/precito.system
+Import,https://github.com/ThorvaldAagaard/BBOalert/blob/master/Custom/focusoptions.js
 Option,RecordedBids OFF
 Option,RecordedBids ON
