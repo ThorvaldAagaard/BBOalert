@@ -1,4 +1,4 @@
-﻿BBOalert, 04-05-2023 01:57:59 Stig Werdelin
+﻿BBOalert, 09-05-2023 15:28:39 Stig Werdelin
 Javascript,https://github.com/stanmaz/BBOalert/blob/master/Plugins/stanmazPlugin.js
 Option,Entire system
 Shortcut,Shortcuts for the CHAT box, , width=100% backgroundColor=palegreen
@@ -3857,4 +3857,3 @@ Script,onBiddingBoxHidden,setOptionsOff();
 Option
 Option,RecordedBids OFF
 Option,RecordedBids ON
-

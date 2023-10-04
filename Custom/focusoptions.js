@@ -77,4 +77,3 @@ Script, onBiddingBoxHidden, setOptionsOff();
 Option
 Option, RecordedBids OFF
 Option, RecordedBids ON
-
