@@ -1,6 +1,46 @@
 # BBOalert
 
-Version : 6.6.1.7
+Version : 8.0.8
+
+**Table Of Content**
+
+  * [Purpose](#purpose)
+  * [Installation](#installation)
+  * [Data import/export](#data-importexport)
+  * [Recommended way of using BBOalert](#recommended-way-of-using-bboalert)
+  * [Alert button](#alert-button)
+  * [Data file format](#data-file-format)
+    + [Examples](#examples)
+      - [Opening bid](#opening-bid)
+      - [Development](#development)
+      - [Development with opponents overcall](#development-with-opponents-overcall)
+      - [Overcall](#overcall)
+    + [Advanced features](#advanced-features)
+      - [Seat-dependent openings](#seat-dependent-openings)
+      - [Continued context](#continued-context)
+      - [Markdown lists](#markdown-lists)
+      - [Continuation line](#continuation-line)
+      - [Long explanation text](#long-explanation-text)
+      - [Wildcards](#wildcards)
+      - [Regular Expressions - RegEx](#regular-expressions---regex)
+    + [User definable scripts](#user-definable-scripts)
+    + [Optional code](#optional-code)
+    + [Partnership options](#partnership-options)
+    + [Trusted code](#trusted-code)
+    + [Keyboard Shortcuts](#keyboard-shortcuts)
+    + [Button Shortcuts](#button-shortcuts)
+    + [Alias](#alias)
+    + [Full Disclosure BSS file support](#full-disclosure-bss-file-support)
+    + [Using BBO convention card to share data](#using-bbo-convention-card-to-share-data)
+    + [Web storage support](#web-storage-support)
+      - [Google Docs](#google-docs)
+      - [GoogleDrive](#googledrive)
+      - [Github](#github)
+      - [Dropbox](#dropbox)
+      - [Blogger](#blogger)
+      - [BBOalert data](#bboalert-data)
+      - [Scripts](#scripts)
+    + [Support for the generic BBO convention card](#support-for-the-generic-bbo-convention-card)
 
 For recent changes see actual release notes :
 
@@ -62,7 +102,13 @@ BBOalert is useful for all types of BBO users :
 
 This extension can be installed using the link :
 
-- Firefox : https://addons.mozilla.org/en-US/firefox/addon/bboalert
+- Firefox : https://addons.mozilla.org/en-US/firefox/addon/bboalert<br>The following supplementary action is required to enable clipboard operations :
+    - Open the about:config page and accept the security warnings
+    - Search for the clipboard keyword
+    - set **dom.events.asyncClipboard.readText** and **dom.events.testing.asyncClipboard** parameters to true
+    
+![](./images/FirefoxClipboardPermissions.png)
+
 - Chrome  : https://chrome.google.com/webstore/detail/bboalert/bjgihidachainhhhilkeemegdhehnlcf
  
 If you discover a serious bug in the program :
@@ -115,7 +161,7 @@ You will find detailed information later in this text but before you continue to
 
 ## Data import/export
 
-BBOalert uses the clipboard to import or export data. Using the clipboard instead of direct file access gives the user the freedom of choice of text editing tool. The code can be edited as a simmple ASCII file or with any text processing tool like Word. To read the data from a file :
+BBOalert uses the clipboard to import or export data. Using the clipboard instead of direct file access gives the user the freedom of choice of text editing tool. The code can be edited as a simple ASCII file or with any text processing tool like Word. To read the data from a file :
 
 - open the data file using your favorite text editor (see section : 'Data file format')
 - select all text (usually with Ctrl-A keystroke)
@@ -233,6 +279,30 @@ you can use code
     +,       2D,    Texas !H
     +,       2H,    Texas !S
 
+#### Markdown lists
+
+Bidding sequences can be coded in form a hierarchical lists. Markdown language unordered lists syntax apply. Example :
+
+    ,1N,15-17p
+    - 2C Stayman
+        - 2D no 4-card major
+            - 2H weak major two-suiter
+    - 2D Transfer
+
+Following rules apply : 
+
+- Starting point of the tree is to be coded in the normal way (context,call,explanation)
+- Indentation
+    - Level 1 must start with a hyphen with no leading spaces
+    - Level N indentation = (N-1)x4 spaces (exactly multiple of 4) and a hyphen
+-    Within the list the call and its explanation should be separated by space(s) and/or tab(s), not by a comma
+-    By default opponents are assumed to pass. If they don’t, add their bid before your bid separated by a comma. Example of a 2C response after RHO’s double :
+
+    ,1N,15-17p
+    - Db,2C to play
+
+- Asterisk may be used instead of hyphen
+
 #### Continuation line
 
 To increase the readability, it is possible to split a long record over more than one line. When a record ends with a backslash, it is cancatenated with the next record. Example : instead of 
@@ -314,6 +384,12 @@ Examples :
       /Db$/,Rd,forcing; may be SOS              ,but redouble is forcing
       /^(1N|1N----)$/,Db,for penalties
 
+When the <call> field contains a regex group containing a list of possible bids with different explanations, the explanations can be listed in the same one record in supplementary comma separated fields.
+
+	Example : 
+
+	1N--,(2C|2D|2H|2S),Stayman,Texas !H,Texas !S,Texas !C
+
 Wildcards and regular expressions are powerfull features to get more compact code, but must be used carefully.
 
 ### User definable scripts
@@ -323,6 +399,7 @@ Portions of the text can be replaced by the result returned by a user definable 
 
 Scripts may be used in fields :
 - bidding context
+- call
 - explanation text
 - shortcut text
 - button text
@@ -349,6 +426,8 @@ Note : X and Y are arbitrary script names,and there are no specific limitations.
 - To span the script over multiple lines \ should be used at the end of the line
    
 More information about scripting can be found in the "Scripting in BBOalert.pdf" file.
+
+Scripting allows custom data syntax. This feature is experimental : see this [folder](https://github.com/stanmaz/BBOalert/tree/master/Scripts/CustomSyntax) for details
 
 ### Optional code
 
@@ -474,7 +553,7 @@ You are also allowed to define Alt-key shortcuts as shown in this example :
 
 The \n token within the shortcut text will split it and each part will be sent immediately. Example :
 
-   Shortcut,WC,Welcome\nwe are playing SAYC\nItalian discard\n
+    Shortcut,WC,Welcome\nwe are playing SAYC\nItalian discard\n
    
 This should be used only in the chat box only to increase the readabilit of the message by subdividing it separate lines. 
 
@@ -488,13 +567,13 @@ At the top of the panel three buttons are predefined to erase single character, 
 
 The data format is similar to keyboard shortcuts :
 
-   Button,<token>,<full text>[,optional properties]
+    Button,<token>,<full text>[,optional properties]
    
 This will create a button with <token> label. Pressing the button will append <full text>
    
 Example
 
-   Button,Hello,Hello; We are playing ACOL
+    Button,Hello,Hello; We are playing ACOL
    
 You don't need to duplicate keybord shortcuts into buttons. Keyboard shortcuts will be displayed together with button shortcuts.
 
@@ -535,7 +614,7 @@ If you do not want a shortcut to appear on the buttons panel you may use the "Di
 
 The format of an alias record is :
 
-      Alias,<string1>,<string2>
+      Alias,<string1>,<string2>,<tags>
       
 If any explanation text record contains <string1> it will be replaced by <string2>. Following rules apply :
 
@@ -544,6 +623,30 @@ If any explanation text record contains <string1> it will be replaced by <string
 - Always the last match is used for string substitution
 - The aliases should be sorted from the shortest to the longest <string1>
 - In both strings case and spaces matter (leading and trailing). Note : to keep the visual control of trailing spaces in <string2> a comma may be added at the end of the record.
+
+Optional <tags> may be used to restrict the use to a specific data field :
+- @C : context field
+- @B : call field
+- @E : explanation field
+- @G : global : String substitution on the record before parsing. This allows formatting the  whole data records dynamically. As the comma is not allowed in the alias text, the HTML entity ```&comma;``` should be used instead.
+- no tag : String substitution on all fields after parsing
+
+Examples of the use of tags :
+
+- @C@B : prevents to substitute the character “m” in the explanation text
+
+    Alias,m,[CD],@C@B
+
+- The @G tag allows using the plain language to make the code more readable
+
+    Alias,Opening 1 club : ,```&comma;```1C```&comma;```,@G
+    Opening 1 club : 16+p any distribution
+
+- The @G tag allows to use a custom field separator. E.g. : he vertical bar can be used as a field separator instead of a comma. This technique allows to present the list opening bids as a table in markdown format. 
+
+    Alias,|,```&comma;```,@G
+    | 1D | 4+!D |
+
 
 The main purpose of aliases is to solve the problem of national bridge events where the usage of the local language is required. Maintaining two different data files for two different languages is not practical. The aliases can be used to translate expressions depending on the selected language. Example of code :
 
@@ -565,7 +668,7 @@ Sorting aliases by <string1> length is important (remember : last match counts).
 
 The word ‘without’ will be translated to ‘avecout’ which is wrong. Reversing the order will give the correct result.
 
-Aliases may be used also in the bidding context field. Example :
+Aliases may be used also in the bidding context or in the call field. Example :
 
       Alias,#,2C--2D--
       #2N--,3C,Puppet Stayman
@@ -590,14 +693,6 @@ BBOalert converts BSS data internally to the BBOalert native format. Vulnerabili
 
 The converted data is available in the clipboard. You can paste it into the text editor and use it as a starting point for further modifications. Another possible scenario is to keep importing the original BSS file and to create an overriding code (in BBOalert native format) in a separate file to be appended later ('Append' button).
 
-### Quick Undo
-
-Clicking at the header of the auction box will generate an Undo command
-
-![](./images/QuickUndo.png)
-
-This is much faster, than selecting Undo from the menu.
-
 ### Using BBO convention card to share data
 
 To share the data with your partner via the BBO server :
@@ -619,9 +714,11 @@ This convention card together with the BBOalert data will become available for y
 
 BBOalert allows to store data on a file hosting server and to import it dynamically at the beginning of each session. This facilitates the file sharing making sure that both partners use the same data. Actually three sites are supported with their specific limitations due to the particular data security implementation :
 
-- Google Drive : only GoogleDocs format are supported. The data can be formatted as a pretty readable and printable document. Both partners can edit the document online
+- GoogleDocs : The data can be formatted as a pretty readable and printable document. Both partners can edit the document online
+- GoogleDrive : The data can be imported from text files stored in GoogleDrive.
 - Github : only ASCII text files are supported. Both partners can edit the data online. To make the data more readable the Markdown format should be used. Markdown format is standard for documentation purposed in Github environment.
 - Dropbox : only ASCII text files are supported without the possiblity of online editing
+- Google Blogger https://www.blogger.com
 
 We assume that you are familiar with the tool of your choice.
        
@@ -647,6 +744,18 @@ More details can be found in the document :
        
 https://docs.google.com/document/d/1XTma7fZbI0pRU3TtNFOLAG0sUKyBaXFtkQAu90rwfRY/edit?usp=sharing
        
+#### GoogleDrive
+
+The data can be imported from text files stored in GoogleDrive cloud. The URL link for public viewing should be used with the “Import” record. Note : the file size is limited to 260k bytes
+
+The public URL can be obtained in the following way :
+       
+- open the GoogleDrive folder containing the file
+- select the file with the right mouse button
+- select the "Get link" command
+- make sure that under "General Access" the "Anyone with the link" and "Viewer" options are selected
+- Press the “Copy link” button 
+
 #### Github
        
 - make public the repository where you store the data
@@ -659,6 +768,10 @@ https://docs.google.com/document/d/1XTma7fZbI0pRU3TtNFOLAG0sUKyBaXFtkQAu90rwfRY/
 - upload it to your Dropbox account
 - make the file shared
 - generate the public URL link for viewing only (default is editing)
+       
+#### Blogger
+       
+Note : This section is under development
 
 #### BBOalert data
 
@@ -679,6 +792,29 @@ The rest of the data will be loaded by following the link above.
 
 Handling a large data file is not easy and subdividing it into smaller linked pieces is a great help. This enables collaborative editing and easy sharing of effort. Each module can represent a convention that can be published within the users group on Facebook and reused by others.
 
+The URL’s used in the “Import” records are long and cryptic because instead of real file names the cloud service providers use file ID’s to identify the file. It is possible to create an alias using an arbitrary short name. The advantages : 
+
+- Readability of the code
+- Easy data maintenance if the URL changes
+
+Example : instead of 
+
+    Import,https://docs.google.com/document/d/e/2PACX-1vSz8gq9LwJQ2UY5El6czdaElyvzSjQMx1dvrIh9Ss_0-muXDwr9-7N8bAblEryG0QwkKcgWIivR3WXs/pub
+
+First define an alias at the data beginning 
+
+    Import,1C_Opening,https://docs.google.com/document/d/e/2PACX-1vSz8gq9LwJQ2UY5El6czdaElyvzSjQMx1dvrIh9Ss_0-muXDwr9-7N8bAblEryG0QwkKcgWIivR3WXs/pub
+
+And then use 
+
+    Import,1C_Opening
+
+Note : 
+
+- URL aliases must be defined before they are used
+- Import aliases must be defined in the root file of the hierarchical file organisation.
+- Multiple definitions of the same alias (same alias, different URL’s) are allowed : the last one will be used.
+
 #### Scripts
 
 Until now all Javascript code was included in the data file. With this release it is possible to save every piece of Javascript code in separate files and use the public link in the data file as in this example:
@@ -690,7 +826,7 @@ Storing scripts on the web has two advantages :
 - Smaller data file. Scripts are not merged with the user data but dynamically added to the BBOalert program.
 - Published scripts can be shared with others       
        
-#### Support for the generic BBO convention card
+### Support for the generic BBO convention card
 
 The drawback of the generic convention card (templates : “BBO Advanced (2/1=GF)” “SAYC - Standard American Yellow Card” or “Simple Modern Acol”) is the lack of text formatting features. The problem is that BBO software removes new line characters and elimines multiple spaces or tabs. The text displayed to the opponents is very hard to read.
 
@@ -712,186 +848,33 @@ Then :
 
 You can use this template to prepare your data (hint : set the keyboard to overstrike mode to preserve text line length). The field ID’s are self explanatory.
 
-CC,summary
-… text for “System Summary” section
-CC,ntopen
-… text for “Notrump Openings” section
-CC,majoropen
-… text for “Minor Suit Openings” section
-CC,minoropen
-… text for “Minor Suit Openings” section
-CC,level2open
-… text for “2-Level Openings” section
-CC,other
-… text for “Other important notes” section
-CC,doubles
-… text for “Doubles” section
-CC,ntocalls
-… text for “Notrump Overcalls” section
-CC,socalls
-… text for “Simple Overcalls” section
-CC,over1nt
-… text for “Over 1NT Openings” section
-CC,jocalls
-… text for “Jump Overcalls” section
-CC,overtox
-...text for “Over Takeout Doubles” section
-CC,directq
-...text for “Over Takeout Doubles” section
-CC,slam
-...text for “Slam Bidding” section
-CC
+    CC,summary
+    … text for “System Summary” section
+    CC,ntopen
+    … text for “Notrump Openings” section
+    CC,majoropen
+    … text for “Minor Suit Openings” section
+    CC,minoropen
+    … text for “Minor Suit Openings” section
+    CC,level2open
+    … text for “2-Level Openings” section
+    CC,other
+    … text for “Other important notes” section
+    CC,doubles
+    … text for “Doubles” section
+    CC,ntocalls
+    … text for “Notrump Overcalls” section
+    CC,socalls
+    … text for “Simple Overcalls” section
+    CC,over1nt
+    … text for “Over 1NT Openings” section
+    CC,jocalls
+    … text for “Jump Overcalls” section
+    CC,overtox
+    ...text for “Over Takeout Doubles” section
+    CC,directq
+    ...text for “Over Takeout Doubles” section
+    CC,slam
+    ...text for “Slam Bidding” section
+    CC
 
-## Release notes 
-
-### Version 2.10
-
-Bug fix : long explanation text split by # character is now correctly displayed on first and subsequent usages
-
-Bug fix : options are now correctly initialized after the data is retrieved from cache
-
-New feature : the chat message part of a long explanation text is automatically sent when the bid is confirmed (OK button of the bidding box)
-
-New feature : Multiline support for chat message shortcuts : \n in the shortcut text will split the whole message and each part will be sent immediately. Typical application : long text as prealert. Not to be used with shortcuts used for bid explanation.
-
-### Version 3.0.1
-
-- options selector added (see 'Partnership options' section)
-- manual alerts are recorded in the cache (see 'Recommended way of using BBOalert' section)
-- the whole data is kept in the clipboard until overwritten by 'Export' command or by an external application
-- Alert button turned automatically ON. When turned OFF, the call explanation is erased. (see 'Alert button' section)
-- backslash to split long records (see 'Continuation line' section)
-
-If you discover a serious bug in the program :
-
-- report it to the BBOalert community on Facebook
-- revert temporarily to previous version (see 'Installation' section)
-
-### Version 3.0.2
-
-- bug fix : apparently intermittend fault in @ tagged option selection
-
-### Version 3.1
-
-- bug fix : automatic vulnerability detection not working after the opening of the Hitory tab
-- mamory leak
-
-- new feature : new user interface integrated with the BBO tabs
-- new feature : export of log data
-
-### Version 3.2 skipped
-
-### Version 3.3
-
-New features
-- RegEx in the ‘call’ field
-- full RegEx support
-- Trusted code attribute
-- Quick undo
-- Touch screen support
-
-### Version 3.4
-
-Bug fixes
-- Forced page reload at Logoff is removed
-- Partner selection of @-tagged options
-
-New feature
-- User definable scripts
-
-## Version 3.5
-
-New feature :
-
-- recording of post-mortem alerts. Explanations after the call is made, are recorded if the text entry is terminated by pressing OK. If the text entry is terminated by Enter key, the alert will be sent to the opponents but not recorded.
-
-
-## Version 3.6
-
-Bug fixes :
-
-- Certain combinations of automatic option selection were impossible. To fix it, the mechanism of option selection has been reworked.
-- Automatic confirmation of trusted bids is delayed to avoid race problems when switching from untrusted to trusted bid
-- Blank partner selection is ignored in the dropdown box
-
-New features :
-
-- User message displayed at data import 
-- Opponent’s vulnerability option tags added : @N and @V
-- Saving BBOalert data with the BBO convention card
-- User scripts supported in the shortcut text
-
-
-## Version 3.6.1
-
-Bug fix :
-
-The new algorithm for option management requires a small modification of the data file. Without entering in technical details, I recommend to replace spaces by underscores in the option names containing @ tags. Example :
-
-    Option,Opening @n
-    Option,Opening @v
-
-Should be :
-
-    Option,Opening_@n
-    Option,Opening_@v
-
-The BSS file converter has been modified and produces underscores in option names.
-
-## Version 3.6.2
-
-Bug fix :
-- linefeed character added (if missing) at the end of the data after import
-
-## Version 3.6.3
-
-Bug fix:
-- incorrect mutual exclusive option initialization when partner selected
-
-## Version 4.0
-
-New feature :
-- button shortcuts (see <b>Button shortcuts</b> section)
-- scripts allowed in the biding context field
-
-## Version 4.0.0.2
-
-Bug fix :
-- BBOalert crash due to the modification of HTML data by BBO
-
-## Version 5.0
-
-New features :
-- The optional text in the BBOalert header (first line of the code) may contain HTML codes \<br> for line break and \<b> for bold font
-- When the opponents ask supplementary explanation, the text entry box is displayed at the same place as the bidding box instead of right-upper corner. The box is draggable.
-- All records types (e.g. Button Shortcut or Script) are supported within options. It means that when a record is inside an option it will be active only when the option is enabled.
-- New record type is supported : <br>Alias,\<string1>,\<string2><br>If any alert record contains \<string1> it will be replaced by \<string2>
-
-## Version 5.0.1
-
-Bug fix :
-- performance issue
-
-## Version 5.1
-
-Bug fix : 
-- Shortcuts and buttons not working with non-english BBO user interfaces
-
-New feature : 
-- Automatic options selection on pair basis : two user ids separated by + character.
-- Extended scripting
-
-## Version 5.1.1.1
-
-Bug fix : 
-- updated to the new BBO user interface
-
-## Version 6.0
-
-New features :
-- support for Dropbox data storage and sharing for alerts and scripts
-- convention card text import
-       
-## from version 6.3
-
-https://docs.google.com/document/d/e/2PACX-1vQ_8Iv9HbBj4nWDXSY_kHsW1ZP_4c4dbOVO0GLuObJc1vFu_TBg9oV6ZJXMWd_tLITOj7i6WaJBeZJI/pub
