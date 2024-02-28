@@ -1,3 +1,9 @@
-BBOalert, 15-05-2023 16:53:50 Precito
+BBOalert, 2024-02-28, Play with BEN
 Script,onNewDeal, alert("onNewDeal")
+Script,onNewAuction, alert("onNewAuction")
 Script,onAuctionBegin, alert("onAuctionBegin")
+Script,onAuctionEnd, alert("onAuctionEnd")
+Script,onBiddingBoxDisplayed, alert("onBiddingBoxDisplayed")
+Script,onMyLead, alert("onMyLead")
+Script,onMyCardsDisplayed, alert("onMyCardsDisplayed")
+Script,onDealEnd, alert("onDealEnd")
