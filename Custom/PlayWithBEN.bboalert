@@ -2,7 +2,7 @@ BBOalert, 2024-02-28 Play with BEN
 //BBOalert, log, 2024-02-28, Play with BEN
 //Script,onNewDeal
 console.log(getNow(true) + " onNewDeal");
-console.log(getNow(true) + " Deal Number: " + getDealNumber);
+console.log(getNow(true) + " Deal Number: " + getDealNumber());
 console.log(getNow(true) + " Vulnerability: " +  ourVulnerability() + areTheyVulnerable())
 
 //Script,onMyCardsDisplayed
@@ -16,6 +16,8 @@ if (mySeat() == whosTurn()) {
 console.log(getNow(true) + " onAuctionBegin" + " " + isMyTurn());
 //Script,onAuctionEnd
 console.log(getNow(true) + " onAuctionEnd");
+console.log(mySeat())
+console.log(whosTurn())
 if (mySeat() == whosTurn()) {
     console.log(getNow(true) + "You should make the opening lead now" + + myCardsDisplayed )
 }
