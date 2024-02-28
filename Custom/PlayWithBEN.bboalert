@@ -1,9 +1,11 @@
 BBOalert, 2024-02-28, Play with BEN
 Script,onNewDeal, alert("onNewDeal")
+Script,onMyCardsDisplayed, alert("onMyCardsDisplayed")
 Script,onNewAuction, alert("onNewAuction")
 Script,onAuctionBegin, alert("onAuctionBegin")
 Script,onAuctionEnd, alert("onAuctionEnd")
 Script,onBiddingBoxDisplayed, alert("onBiddingBoxDisplayed")
+Script,onAuctionBoxDisplayed, alert("onAuctionBoxDisplayed")
 Script,onMyLead, alert("onMyLead")
-Script,onMyCardsDisplayed, alert("onMyCardsDisplayed")
 Script,onDealEnd, alert("onDealEnd")
+Script,onNewPlayedCard, alert("onNewPlayedCard")
