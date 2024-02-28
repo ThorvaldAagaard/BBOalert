@@ -100,16 +100,7 @@ whosTurn = function () {
     }).find(".directionClass").text();
 }
 
-mySeat = function () {
-	let nd
-	if ((nd = getNavDiv()) == null) return '';
-	let cells = nd.querySelectorAll('.auctionBoxHeaderCellClass');
-	if (cells == null) return '';
-	if (cells.length != 4) return '';
-	return cells[3].innerText.slice(0, 1);
-}
-
-function getDealer() {
+getDealer = function () {
     try {
         let dn = parseInt(getDealNumberAutoBid());
         // Extract the dealer character
