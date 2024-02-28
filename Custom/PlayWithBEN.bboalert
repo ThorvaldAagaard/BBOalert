@@ -1,11 +1,129 @@
-BBOalert, 2024-02-28, Play with BEN
-Script,onNewDeal, alert("onNewDeal")
-Script,onMyCardsDisplayed, alert("onMyCardsDisplayed")
-Script,onNewAuction, alert("onNewAuction")
-Script,onAuctionBegin, alert("onAuctionBegin")
-Script,onAuctionEnd, alert("onAuctionEnd")
-Script,onBiddingBoxDisplayed, alert("onBiddingBoxDisplayed")
-Script,onAuctionBoxDisplayed, alert("onAuctionBoxDisplayed")
-Script,onMyLead, alert("onMyLead")
-Script,onDealEnd, alert("onDealEnd")
-Script,onNewPlayedCard, alert("onNewPlayedCard")
+BBOalert, 2024-02-28 Play with BEN
+//BBOalert, log, 2024-02-28, Play with BEN
+//Script,onNewDeal
+console.log(getNow(true) + " onNewDeal");
+console.log(getNow(true) + " Deal Number: " + getDealNumber);
+console.log(getNow(true) + " Vulnerability: " +  ourVulnerability() + areTheyVulnerable())
+
+//Script,onMyCardsDisplayed
+console.log(getNow(true) + " onMyCardsDisplayed " + myCardsDisplayed);
+//Script,onNewAuction
+console.log(getNow(true) + " onNewAuction " + currentAuction + " next " + whosTurn() + " " + isMyTurn());
+if (mySeat() == whosTurn()) {
+    console.log(getNow(true) + "You should bid now" + + myCardsDisplayed )
+}
+//Script,onAuctionBegin
+console.log(getNow(true) + " onAuctionBegin" + " " + isMyTurn());
+//Script,onAuctionEnd
+console.log(getNow(true) + " onAuctionEnd");
+if (mySeat() == whosTurn()) {
+    console.log(getNow(true) + "You should make the opening lead now" + + myCardsDisplayed )
+}
+//Script,onBiddingBoxDisplayed
+console.log(getNow(true) + " onBiddingBoxDisplayed");
+//Script,onAuctionBoxDisplayed
+console.log(getNow(true) + " onAuctionBoxDisplayed");
+//Script,onMyLead
+console.log(getNow(true) + " onMyLead");
+//Script,onDealEnd
+console.log(getNow(true) + " onDealEnd");
+//Script,onNewPlayedCard
+var cards = getPlayedCards()
+console.log(getNow(true) + " onNewPlayedCard " + cards);
+if (cards.length == 4) {
+    console.log(getNow(true) + " Trick Ended " + cards);
+}
+//Script
+
+//BBOalert,myFunctions
+//Script,onDataLoad
+
+getCardByValue = function (cv) {
+    var card =  $("bridge-screen" ,parent.window.document).find(".topLeft:visible").filter(function () {
+        if (replaceSuitSymbols(this.textContent,"") == cv) return this;
+    });
+    if (card.length != 0) return card[0];
+    return null;
+}
+
+playCardByValue = function (cv) {
+    var card = getCardByValue(cv);
+    if (card != null) {
+        card.click();
+        card.click();
+    }
+}
+
+getDummyCards = function () {
+    playedCards = [];
+    var cards =  $("bridge-screen" ,parent.window.document).find(".cardClass:visible").each(function () {
+        if (this.style.zIndex.startsWith("3")) {
+            var c = $(this).find(".topLeft").text();
+            playedCards.push(replaceSuitSymbols(c, ""));
+        }
+    });
+    return playedCards;
+}
+
+getMyCards = function () {
+    playedCards = [];
+    var cards =  $("bridge-screen" ,parent.window.document).find(".cardClass:visible").each(function () {
+        if (this.style.zIndex.startsWith("1")) {
+            var c = $(this).find(".topLeft").text();
+            playedCards.push(replaceSuitSymbols(c, ""));
+        }
+    });
+    return playedCards;
+}
+
+function getCard(index) {
+    var card = parent.$(".cardClass:visible").filter(function () {
+        return $(this).css('z-index') == index;
+    }).text();
+    if (card.length == 6) {
+        card = "T" + card.slice(-1);
+    } else card = card.slice(0, 2);
+    return card;
+}
+
+isMyTurn = function () {
+    return ($("bridge-screen" ,parent.window.document).find(".nameBarClass:visible").first().css("background-color") == 'rgb(255, 206, 0)')
+}
+
+whosTurn = function () {
+    return $("bridge-screen,parent",parent.window.document).find(".nameBarClass:visible").filter(function() {
+        if (this.style.backgroundColor == 'rgb(255, 206, 0)') return this;
+    }).find(".directionClass").text();
+}
+
+mySeat = function () {
+	let nd
+	if ((nd = getNavDiv()) == null) return '';
+	let cells = nd.querySelectorAll('.auctionBoxHeaderCellClass');
+	if (cells == null) return '';
+	if (cells.length != 4) return '';
+	return cells[3].innerText.slice(0, 1);
+}
+
+function getDealer() {
+    try {
+        let dn = parseInt(getDealNumberAutoBid());
+        // Extract the dealer character
+        let dealer = "NESW".charAt((dn - 1) % 4);
+        return dealer;
+    } catch {
+        // when something goes wrong
+        return "";
+    }
+}
+
+getDealNumber = function () {
+	let nd
+	if ((nd = getNavDiv()) == null) return null;
+	let vpi = nd.querySelector('.vulPanelInnerPanelClass');
+	if (vpi == null) return null;
+	if (!isVisible(vpi)) return null;
+	return vpi.textContent.trim();
+}
+
+//Script
