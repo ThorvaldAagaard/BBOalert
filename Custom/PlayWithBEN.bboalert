@@ -9,6 +9,8 @@ console.log(getNow(true) + " Vulnerability: " +  ourVulnerability() + areTheyVul
 console.log(getNow(true) + " onMyCardsDisplayed " + myCardsDisplayed);
 //Script,onNewAuction
 console.log(getNow(true) + " onNewAuction " + currentAuction + " next " + whosTurn() + " " + isMyTurn());
+console.log(mySeat())
+console.log(whosTurn())
 if (mySeat() == whosTurn()) {
     console.log(getNow(true) + "You should bid now" + + myCardsDisplayed )
 }
