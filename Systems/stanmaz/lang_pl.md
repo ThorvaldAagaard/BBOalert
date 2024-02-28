@@ -1,4 +1,5 @@
-    BBOalert,lang_pl version 1
+    BBOalert,lang_pl version 4.2
+    Script,_dd_,let d = new Date();if (d.getHours() < 18) {R="Dzień dobry";} else {R = "Dobry wieczór";};
     Alias, or , albo ,
     Alias, and , i ,
     Alias,if,jeżeli
@@ -11,13 +12,14 @@
     Alias,suit,kolor
     Alias,card,kart
     Alias,weak,słaby
-    Alias,strong,mocne
+    Alias,strong,silne
     Alias,preempt,blok
     Alias,Relay,relay
     Alias,Clubs,Trefle
     Alias,Diamonds,Karo
     Alias,Hearts,Kiery
     Alias,Spades,Piki
+    Alias,NoTrump,BezAtu
     Alias,Control,Kontrola
     Alias,stopper,zatrzymanie
     Alias,possible,możliwy
@@ -53,12 +55,13 @@
     Alias,weak opening,słabe otwarcie
     Alias,undefined force,dowolna siła
     Alias,any 6 card suit with max 1.5 loser,dowolny kolor 6-kartowy z maximum 1.5 przegrywającej
-
+    
     Shortcut,Raccourcis clavier,,width=100% backgroundColor=Cyan fontSize=16px
-    Shortcut,ww,Czesc; używamy uproszczonej DWURURKI:\notwarcie 1x na podwójnym Texasie (1T=4+!H;1K=4+!S;1C=5+!C albo zrównoważone;1P=5+!D)\npierwsza odpowiedź=relay albo Texas. Potem naturalnie.\nNasza karta konwencyjna\n https://drive.google.com/file/d/1JS0K7fJp_uBWZQIJCmEUEA9NJtrmyby_/view?usp=sharing\nAtak 3cia lub 5ta ; Najwyższa z sekwencji (przeciw BA) lub odwrotnie (przeciw kontraktowi w kolor).\nPo ataku partnera :niska jest zachęcająca\nWłoskie zrzutki nieparzysta=zachęcająca parzysta=Lavinthal\n
+    Shortcut,ww,Czesc; używamy uproszczonej DWURURKI:\notwarcie 1x na podwójnym Texasie (1T=4+!H;1K=4+!S;1C=5+!C albo zrównoważone;1P=5+!D)\npierwsza odpowiedź=relay albo Texas. Potem naturalnie.\nAtak 3cia lub 5ta ; Najwyższa z sekwencji (przeciw BA) lub odwrotnie (przeciw kontraktowi w kolor).\nPo ataku partnera :niska jest zachęcająca\nWłoskie zrzutki nieparzysta=zachęcająca parzysta=Lavinthal\n
     Shortcut,GTG,Niestety muszę odejść; Dzięki; Do następnego razu\n
     Shortcut,ML,Ostatnie rozdanie; Dzięki\n
-    Shortcut,dd,Dzień dobry!\n
+    Shortcut,dd,%_dd_%\n
+    Shortcut,zz,Cześć\n
     Shortcut,SP,Sorry\n
     Shortcut,Raccourcis enchères,,width=100% backgroundColor=Cyan fontSize=16px
     Shortcut,TC,Texas !C
@@ -92,7 +95,7 @@
     Shortcut,NK,Wyjście przeciw BA : K = typowe AKW AKD KDW ou KD10\n,width=20%
     Shortcut,NQ,Wyjście przeciw BA : D = typowe DW10 or DW\n,width=20%
     Shortcut,NJ,Wyjście przeciw BA : W = typowe ADW or W10x\n,width=20%
-    Shortcut,NT,Wyjście przeciw BA : 10 = typowe AW10 or RW10 ot 109x\n,width=20%
+    Shortcut,N10,Wyjście przeciw BA : 10 = typowe AW10 or RW10 ot 109x\n,width=20%
 
     Shortcut,SA,Wyjście przeciw kolorowi : A = typiquement AR even number of cards\n,width=20%
     Shortcut,SK,Wyjście przeciw kolorowi : R = typiquement AR odd number of cards\n,width=20%
@@ -129,3 +132,6 @@
     /*
     *   Polish shortcuts, buttons and aliases
     */
+
+    Shortcut,TIMEOUT,%longBeep%,width=50%
+    Shortcut,TIMEOUT_WARNING,%shortBeep%,width=50%

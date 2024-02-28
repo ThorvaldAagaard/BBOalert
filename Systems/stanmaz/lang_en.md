@@ -7,11 +7,8 @@
     Welcome; we use very simple but unusual scheme:\n\
     opening 1x in double Texas (1C=4+!H;1D=4+!S;1H=5+!C or balanced;1S=5+!D)\n\
     1st response=relay or Texas. Then natural.We hope you do not mind. Thanks.\n\
-    Full CC\n\
-    https://drive.google.com/file/d/1JS0K7fJp_uBWZQIJCmEUEA9NJtrmyby_/view?usp=sharing\n\
     Lead 3rd/5th; Sequence:top(NT); Rousinov(suit). Discard:odd=encouraging.\n\
-    On partner’s lead:small=encouraging\nFirst italian discard (odd=encouraging)\n\
-    We don't ask and we don't accept UNDO. Use confirm bids and confirm cards option\n
+    On partner’s lead:small=encouraging\nFirst italian discard (odd=encouraging)\n
 
     Shortcut,LL,Lead 3rd/5th; Sequence:top(NT); Rousinov(suit). Discard:odd=encouraging.\nOn partner’s lead:small=encouraging\nFirst italian discard (odd=encouraging)\n
     Shortcut,xx,%onBiddingBoxDisplayed%
@@ -50,7 +47,7 @@
     Shortcut,NK,Lead against NT : K = typically AKJ AKQ KQJ or KQT\n,width=20%
     Shortcut,NQ,Lead against NT : Q = typically QJT or QJ9\n,width=20%
     Shortcut,NJ,Lead against NT : J = typically AQJ or JTx\n,width=20%
-    Shortcut,NT,Lead against NT : 10 = typically AJ10 or KJ10 ot 109x\n,width=20%
+    Shortcut,N10,Lead against NT : 10 = typically AJ10 or KJ10 ot 109x\n,width=20%
 
     Shortcut,SA,Lead against suit : A = typically AK even number of cards\n,width=20%
     Shortcut,SK,Lead against suit : K = typically AK odd number of cards\n,width=20%
