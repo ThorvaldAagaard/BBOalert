@@ -1,5 +1,5 @@
 //BBOalert, stanmaz new events 
-//BBOalert, version 20240315
+//BBOalert, version 20240317.1
 //Script,onAnyMutation
 //Script,onNewDeal
 console.log(Date.now() + " onNewDeal " + getDealNumber());
@@ -24,6 +24,7 @@ console.log(Date.now() + " onAuctionBegin");
 //Script,onAuctionEnd
 console.log(Date.now() + " onAuctionEnd");
 execUserScript('%onBeforePlayingCard%');
+if (isMyTurnToPlay()) execUserScript('%onMyTurnToPlay%');
 //Script,onBiddingBoxDisplayed
 console.log(Date.now() + " onBiddingBoxDisplayed");
 //Script,onAuctionBoxDisplayed
@@ -33,13 +34,13 @@ console.log(Date.now() + " onMyLead");
 //Script,onDealEnd
 console.log(Date.now() + " onDealEnd");
 //Script,onNewPlayedCard
+console.log(Date.now() + " onNewPlayedCard " + getPlayedCards() + " turn " + whosTurn());
 if (whosTurn() != "") {
-    console.log(Date.now() + " onNewPlayedCard " + getPlayedCards() + " turn " + whosTurn());
     execUserScript('%onBeforePlayingCard%');
+    if (isMyTurnToPlay()) execUserScript('%onMyTurnToPlay%');
 }
 //Script,onBeforePlayingCard
 console.log(Date.now() + " onBeforePlayingCard " + whosTurn());
-if (isMyTurnToPlay()) execUserScript('%onMyTurnToPlay%');
 //Script,onNewActivePlayer
 console.log(Date.now() + " onNewActivePlayer " + activePlayer);
 //Script,onMyTurnToBid
@@ -67,26 +68,23 @@ playCardByValue = function (cv) {
     }
 }
 
-getDummyCards = function () {
-    playedCards = [];
-    var cards = $("bridge-screen", parent.window.document).find(".cardClass:visible").each(function () {
-        if (this.style.zIndex.startsWith("3")) {
+getCardsByDirection = function (direction) {
+    let cards = [];
+    let zidx = "";
+    switch (direction) {
+        case "S" : zidx = "1"; break;
+        case "W" : zidx = "2"; break;
+        case "N" : zidx = "3"; break;
+        case "E" : zidx = "4"; break;
+        default : return cards;
+    }
+    $("bridge-screen", parent.window.document).find(".cardClass:visible").each(function () {
+        if (this.style.zIndex.startsWith(zidx)) {
             var c = $(this).find(".topLeft").text();
-            playedCards.push(replaceSuitSymbols(c, ""));
+            cards.push(replaceSuitSymbols(c, ""));
         }
     });
-    return playedCards;
-}
-
-getMyCards = function () {
-    playedCards = [];
-    var cards = $("bridge-screen", parent.window.document).find(".cardClass:visible").each(function () {
-        if (this.style.zIndex.startsWith("1")) {
-            var c = $(this).find(".topLeft").text();
-            playedCards.push(replaceSuitSymbols(c, ""));
-        }
-    });
-    return playedCards;
+    return cards;
 }
 
 function getCard(index) {
@@ -97,6 +95,14 @@ function getCard(index) {
         card = "T" + card.slice(-1);
     } else card = card.slice(0, 2);
     return card;
+}
+
+getMyCards = function () {
+    return getCardsByDirection(mySeat());
+}
+
+getDummyCards = function () {
+    return getCardsByDirection(getDummyDirection());
 }
 
 isMyTurnToBid = function () {
@@ -124,8 +130,6 @@ delayedAlert = function (txt, delay = 0) {
         alert(txt);
     }, delay)
 }
-
-
 
 selectBid = function (bid, alert = false) {
     let bbb = parent.$("bidding-box button");
@@ -238,5 +242,8 @@ window.onNewActivePlayer = function () {
     }
 }
 
+window.mySeat = function() {
+    return $(".auction-header",getNavDiv()).text().slice(-2,-1);
+}
 //Script
 
