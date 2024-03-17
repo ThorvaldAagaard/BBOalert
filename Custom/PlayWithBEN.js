@@ -1,88 +1,204 @@
 
-Import,https://github.com/stanmaz/BBOalert/blob/master/Scripts/test/PlayWithBEN_bboalert.js
+Import, https://github.com/stanmaz/BBOalert/blob/master/Scripts/test/PlayWithBEN_bboalert.js
 
-//Script,onNewDeal
-let playedCards = ""
-//Script,onNewAuction
-if ((ctx.length >= 8) && (ctx.endsWith('------'))) {
-	dummyDirection = "NESWNESW".charAt("NESW".indexOf(whosTurn())+1);
-	declarerDirection = "NESWNESW".charAt("NESW".indexOf(whosTurn())+3);
+//Script,onNewDeal 
+try {
+	dealnumber = getDealNumber()
+	myCards = getMyCards()
+	console.log("myCards", myCards)
+	dealString = localStorage.getItem('BidWithBen' + dealnumber);
+	if (!dealString ) {
+		deal = {}
+		deal["number"] = dealnumber
+		deal["dealer"] = getDealerDirection()
+		// Sometimes BBO haven't had time to draw all cards
+		if (getMyCards().length >= 13) {
+			deal["hand"] = formatCards(getMyCards())
+		} else {
+			deal["hand"] = ""
+		}
+		deal["vul"] = ourVulnerability() + areTheyVulnerable()
+		deal["seat"] = mySeat()
+		deal["user"] = getActivePlayer()
+		deal["ctx"] = ""
+		deal["dummy"] = ""
+		deal["played"] = []
+	
+		localStorage.setItem('BidWithBen' + dealnumber, JSON.stringify(deal))
+	}
+	else {
+	
+		deal = JSON.parse(dealString);
+		console.log(deal);
+	
+	}
+	console.log("onMyDeal", deal)
+} catch (error) {
+	console.log(error)
 }
 
-//Script,onBeforePlayingCard
-console.log(getNow(true) + " onBeforePlayingCardXX");
-//Script,onMyTurnToBid
-console.log(getNow(true) + " onMyTurnToBidXX");
+//Script,onDealEnd 
+dealnumber = getDealNumber()
+localStorage.removeItem('BidWithBen' + dealnumber)
+console.log("onDealEnd - Deal removed")
 
-var hand = getMyCards()
-hand = formatCards(hand)
+//Script,onBeforePlayingCard
+console.log(Date.now() + " onMyBeforePlayingCard " + getPlayedCards() + " turn " + whosTurn());
+
+//Script,onMyTurnToBid
+hand = deal["hand"]
+// Due to timing we don't have the hand, so we try to get it again
+if (hand.length < 13)  {
+	console.log(Date.now() + " Updated hand due to timing")
+	deal["hand"] = formatCards(getMyCards())
+}
 var ctx = getContext()
-var user = getActivePlayer()
-var dealer = getDealer()
-var seat = mySeat()
-var vul = ourVulnerability() + areTheyVulnerable()
-var url = "https://remote.aalborgdata.dk/bid?user="+ user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand
-console.log("Requesting " + url)
-fetch(url, {
-	cache: "no-store"
-})
-	.then(response => response.json())
-	.then(data => { console.log(data); 
-		MakeBid(data.bid, 0, "")
+deal["ctx"] = ctx
+var user = deal["user"]
+var dealer = deal["dealer"]
+var seat = deal["seat"]
+var vul = deal["vul"]
+var url = "http://localhost:8085/bid?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand
+console.log("onMyTurnToBidXX Requesting " + url)
+try {
+	fetch(url, {
+		cache: "no-store"
 	})
-	.catch(error => { console.log(error)});
+	.then(function(response) {
+		// Check if the response is successful
+		if (!response.ok) {
+			// Log the response status and status text
+			console.error('Response not OK:', response.status, response.statusText);
+			
+			// Parse the response body as JSON and handle the error
+			return response.json().then(function(errorResponse) {
+				// Extract the error message from the JSON response
+				const errorMessage = errorResponse.error || 'Unknown error occurred';
+				
+				// Show the error message to the user
+				alert(errorMessage);
+				throw new Error(errorMessage); // Throw an error to skip to the catch block
+			});
+		}
+		
+		// If response is OK, parse the response as JSON
+		return response.json();
+	})
+	.then(function(data) {
+		// Proceed with the logic if the response was successful
+		makeBid(data.bid, 0, "");
+	})
+	.catch(function(error) {
+		// Catch any errors that occurred during the fetch or processing
+		console.error('Error occurred:', error.message);
+	});	
+} catch (error) {
+	// Handle any errors that occur during the fetch request
+	alert('Error fetching data:', error.message);
+	// Show an error message to the user or perform other error handling actions
+}
+
+// Before bid update and save deal - BBO seems to forget the bid if we leave after the bid / play
+localStorage.setItem('BidWithBen' + dealnumber, JSON.stringify(deal))
 
 //Script,onMyTurnToPlay 
 console.log(getNow(true) + " onMyTurnToPlayXX");
-// We need to send all cards played to the server as it does not hold state
-playedCards += formatCards(getPlayedCards())
-var hand = getMyCards()
-hand = formatCards(hand)
-var dummy = getDummyCards()
-dummyhand = formatCards(dummy)
+if (getDummyCards().length == 13) {
+	deal["dummy"] = formatCards(getDummyCards())
+	// We update both hand as BBO might rotate the deal
+	if (deal["dummy"] == deal["hand"]) {
+		deal["hand"] = formatCards(getDeclarerCards())
+		deal["seat"] = getDeclarerDirection()
+	}	 
+}
+
+deal["played"] = updatePlayedCards(deal["played"])
+
+var dummyhand = deal["dummy"]
+hand = deal["hand"]
 var ctx = getContext()
-var user = getActivePlayer()
-var dealer = getDealer()
-var seat = mySeat()
-var vul = ourVulnerability() + areTheyVulnerable()
-var url = "https://remote.aalborgdata.dk/play?user="+ user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
-"&dummy=" + dummyhand + "&played=" + playedCards;
-console.log("Requesting " + url)
-fetch(url, {
-	cache: "no-store"
-})
-	.then(response => response.json())
-	.then(data => { console.log(data); 
+deal["ctx"] = ctx
+var user = deal["user"]
+var dealer = deal["dealer"]
+var seat = deal["seat"]
+var vul = deal["vul"]
+if (deal["played"].length == 0) {
+	var url = "http://localhost:8085/lead?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand;
+
+} else {
+	var playedCardsXX = formatCardsPlayed(deal["played"])
+	var url = "http://localhost:8085/play?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
+		"&dummy=" + dummyhand + "&played=" + playedCardsXX;
+}
+console.log("onMyTurnToPlayXX Requesting " + url)
+try {
+	fetch(url, {
+		cache: "no-store"
+	})
+	.then(function(response) {
+		// Check if the response is successful
+		if (!response.ok) {
+			// Log the response status and status text
+			console.error('Response not OK:', response.status, response.statusText);
+			
+			// Parse the response body as JSON and handle the error
+			return response.json().then(function(errorResponse) {
+				// Extract the error message from the JSON response
+				const errorMessage = errorResponse.error || 'Unknown error occurred';
+				
+				// Show the error message to the user
+				alert(errorMessage);
+				throw new Error(errorMessage); // Throw an error to skip to the catch block
+			});
+		}
+		
+		// If response is OK, parse the response as JSON
+		return response.json();
+	})
+	.then(function(data) {
+		// Proceed with the logic if the response was successful
 		playCardByValue(data.card)
 	})
-	.catch(error => { console.log(error)});
+	.catch(function(error) {
+		// Catch any errors that occurred during the fetch or processing
+		console.error('Error occurred:', error.message);
+	});
+	
+} catch (error) {
+	// Handle any errors that occur during the fetch request
+	alert('Error fetching data:', error.message);
+	// Show an error message to the user or perform other error handling actions
+}
+
+// Before play update and save deal - BBO seems to forget the bid if we leave after the bid / play
+localStorage.setItem('BidWithBen' + dealnumber, JSON.stringify(deal))
+
+//Script,onNewPlayedCard 
+// This event calls onMyTurnToPlay, so make no change here
+if (!isMyTurnToPlay()) {
+	deal["played"] = updatePlayedCards(deal["played"])
+}
+localStorage.setItem('BidWithBen' + dealnumber, JSON.stringify(deal))
+
+//Script,onMyCardsDisplayed 
+if (myCardsDisplayed.length == 26) {
+	console.log(Date.now() + " Updated hand in onMyCardsDisplayed")
+	deal["hand"] = formatCardsDisplayed(myCardsDisplayed)
+	localStorage.setItem('BidWithBen' + dealnumber, JSON.stringify(deal))
+}
 //Script
 
-//BBOalert,myFunctions
 //Script,onDataLoad
-dummyDirection = "";
-declarerDirection = "";
-getCardByValue = function (cv) {
-    var card =  $("bridge-screen" ,parent.window.document).find(".topLeft:visible").filter(function () {
-        if (replaceSuitSymbols(this.textContent,"") == cv) return this;
+
+cardExists = function (card, array) {
+    return array.some(function(existingCard) {
+        // Assuming cards are objects with unique identifiers like 'id'
+        return existingCard === card
     });
-    if (card.length != 0) return card[0];
-    return null;
 }
 
-playCardByValue = function (cv) {
-	alert("Play: " + cv)
-	return
-
-	cv = cv.split("").reverse().join("").replace("T", "10")
-	let card = getCardByValue(cv);
-	if (card != null) {
-		card.click();
-		card.click();
-		havePlayed = true
-	}
-}
-
+var playedCardsXX = ''
+var deal = {}
 getSuit = function (txt) {
 	let t = txt;
 	switch (t) {
@@ -107,6 +223,30 @@ getSuit = function (txt) {
 	}
 }
 
+getSuitPlayed = function (txt) {
+	let t = txt;
+	switch (t) {
+		case 'C':
+		case '♣':
+		case '♧':
+			return 'C'; // Clubs
+		case 'D':
+		case '♦':
+		case '♢':
+			return 'D'; // Diamonds
+		case 'H':
+		case '♥':
+		case '♡':
+			return 'H'; // Hearts
+		case 'S':
+		case '♠':
+		case '♤':
+			return 'S'; // Spades
+		default:
+			return -1; // Unknown symbol
+	}
+}
+
 formatCards = function (cards) {
 	let suits = ["", "", "", ""];
 	for (c of cards) {
@@ -115,21 +255,57 @@ formatCards = function (cards) {
 			suits[suit] = c[0].replace("1", "T") + suits[suit];
 		}
 	}
-	let hand = suits.join("_");
+	let hand = suits.join(".");
 	return hand;
 }
 
+formatCardsPlayed = function (cards) {
+	let played = cards.join("");
+	return played;
+}
 
-getDealer = function () {
-    try {
-        let dn = parseInt(getDealNumber());
-        // Extract the dealer character
-        let dealer = "NESW".charAt((dn - 1) % 4);
-        return dealer;
-    } catch {
-        // when something goes wrong
-        return "";
+formatCardsDisplayed = function(cards) {
+    let played = "";
+	let suits = ["", "", "", ""];
+    // Loop over the string in steps of 2 characters
+    for (let i = 0; i < cards.length; i += 2) {
+        let card = cards.substring(i, i + 2); // Get a pair of characters from the string
+        let suit = getSuitPlayed(card.charAt(1)); // Get the suit from the second character
+        if (suit != -1) {
+			suits[suit] = c[0].replace("1", "T") + suits[suit];
+		}
     }
+	played = suits.join(".")
+    return played;
+}
+
+removeAds = function (on) {
+	if (on) {
+		$("#bbo_ad1", BBOcontext()).hide();
+		$("#bbo_ad2", BBOcontext()).hide();
+		$("#bbo_app", BBOcontext()).css("left", "0px");
+		$("#bbo_app", BBOcontext()).css("right", "0px");
+		$("#bbo_app", BBOcontext()).css("width", "");
+		console.log(Date.now() + " Adds removed");
+	}
+};
+
+removeAds(true);
+
+updatePlayedCards = function  (recordedPlays) {
+	let cards = getPlayedCards()
+
+	for (let i = 0; i < cards.length; i += 2) {
+		let card = cards.substring(i, i + 2); // Get a pair of characters from the string
+		let suit = getSuitPlayed(card.charAt(1)); // Get the suit from the second character
+		if (suit != -1) {
+			var played = suit + card.charAt(0).replace("1", "T"); // Append the suit and rank to the result
+			if (!cardExists(played, recordedPlays)) {
+				recordedPlays.push(played);
+			}
+		}
+	}	
+	return recordedPlays;
 }
 
 function triggerMouseEvent(node, eventType) {
@@ -138,9 +314,7 @@ function triggerMouseEvent(node, eventType) {
 	node.dispatchEvent(clickEvent);
 }
 
-MakeBid = function (bid, artificial, explain) {
-	alert("BEN Suggest: " + bid)
-	return
+makeBid = function (bid, artificial, explain) {
 	let elBiddingBox = parent.document.querySelector('.biddingBoxClass');
 	if (elBiddingBox != null) {
 		let elBiddingButtons = elBiddingBox.querySelectorAll('.biddingBoxButtonClass');
@@ -183,4 +357,3 @@ MakeBid = function (bid, artificial, explain) {
 
 
 //Script
-
