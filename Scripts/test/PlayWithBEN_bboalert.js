@@ -1,10 +1,12 @@
 //BBOalert, stanmaz new events 
-//BBOalert, version 20240317.1
+//BBOalert, version 20240317.5
 //Script,onAnyMutation
 //Script,onNewDeal
 console.log(Date.now() + " onNewDeal " + getDealNumber());
 //Script,onMyCardsDisplayed
 console.log(Date.now() + " onMyCardsDisplayed " + myCardsDisplayed);
+currentAuction = '';
+execUserScript('%onNewContext%');
 //Script,onNewAuction
 console.log(Date.now() + " onNewAuction");
 //Script,onNewContext
@@ -52,7 +54,8 @@ console.log(Date.now() + " onMyTurnToPlay Cards played: " + getPlayedCards());
 //BBOalert,myFunctions
 //Script,onDataLoad
 currentContext = "??";
-getCardByValue = function (cv) {
+getCardByValue = function (cval) {
+    let cv =  cval.replace("T", "10");
     var card = $("bridge-screen", parent.window.document).find(".topLeft:visible").filter(function () {
         if (replaceSuitSymbols(this.textContent, "") == cv) return this;
     });
@@ -78,10 +81,11 @@ getCardsByDirection = function (direction) {
         case "E" : zidx = "4"; break;
         default : return cards;
     }
-    $("bridge-screen", parent.window.document).find(".cardClass:visible").each(function () {
+    $("bridge-screen .cardSurfaceClass", getNavDiv()).find(".cardClass:visible").each(function () {
         if (this.style.zIndex.startsWith(zidx)) {
-            var c = $(this).find(".topLeft").text();
-            cards.push(replaceSuitSymbols(c, ""));
+            let c = $(this).find(".topLeft").text();
+            c = replaceSuitSymbols(c, "").replace("10", "T");
+            cards.push(c);
         }
     });
     return cards;
@@ -105,6 +109,10 @@ getDummyCards = function () {
     return getCardsByDirection(getDummyDirection());
 }
 
+getDeclarerCards = function () {
+    return getCardsByDirection(getDeclarerDirection());
+}
+
 isMyTurnToBid = function () {
     return isItMe(getPlayerAtSeat(getDirectionToBid()));
 }
@@ -116,7 +124,7 @@ isMyTurnToPlay = function () {
 }
 
 isMyTurn = function () {
-    return isMyTurnToBid();
+    return (isMyTurnToBid()||isMyTurnToPlay());
 }
 
 whosTurn = function () {
