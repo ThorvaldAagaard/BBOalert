@@ -1,204 +1,99 @@
 
 Import, https://github.com/stanmaz/BBOalert/blob/master/Scripts/test/PlayWithBEN_bboalert.js
 
-//Script,onNewDeal 
-try {
-	dealnumber = getDealNumber()
-	myCards = getMyCards()
-	console.log("myCards", myCards)
-	dealString = localStorage.getItem('BidWithBen' + dealnumber);
-	if (!dealString ) {
-		deal = {}
-		deal["number"] = dealnumber
-		deal["dealer"] = getDealerDirection()
-		// Sometimes BBO haven't had time to draw all cards
-		if (getMyCards().length >= 13) {
-			deal["hand"] = formatCards(getMyCards())
-		} else {
-			deal["hand"] = ""
+//Script,onDummyCardsDisplayed
+console.log(Date.now() + " onDummyCardsDisplayedYY " + dummyCardsDisplayed);
+if (deal["played"] && deal["played"].length > 4) {
+	// Ignore the display of dummy
+} else {
+	dummyCardsDisplayed = dummyCardsDisplayed.split(",").join("")
+	if (dummyCardsDisplayed.length == 26) {
+		deal["dummy"] = formatCardsDisplayed(dummyCardsDisplayed)
+		if (deal["dummy"] == deal["hand"]) {
+			console.log(Date.now() + " BBO moved me to the declarer position");
+			deal["hand"] = formatCards(getDeclarerCards())
+			deal["seat"] = getDeclarerDirection()
+			console.log(deal)
 		}
-		deal["vul"] = ourVulnerability() + areTheyVulnerable()
-		deal["seat"] = mySeat()
-		deal["user"] = getActivePlayer()
-		deal["ctx"] = ""
-		deal["dummy"] = ""
-		deal["played"] = []
-	
-		localStorage.setItem('BidWithBen' + dealnumber, JSON.stringify(deal))
+		savedeal(dealnumber, deal)
+	} else {
+		if (deal["dummy"]="") {
+			alert("Try to construct dummys hand")
+			dummycard = getPlayedCards()[1]
+			deal["dummy"] = formatCardsDisplayed(dummyCardsDisplayed + dummycard)
+			savedeal(dealnumber, deal)
+		}
 	}
-	else {
-	
-		deal = JSON.parse(dealString);
-		console.log(deal);
-	
-	}
-	console.log("onMyDeal", deal)
-} catch (error) {
-	console.log(error)
 }
-
+//Script,onMyCardsDisplayed
+console.log(Date.now() + " onMyCardsDisplayedYY " + myCardsDisplayed);
+if (deal["played"] && deal["played"].length > 4) {
+	// Ignore the display of your cards
+} else {
+	if (myCardsDisplayed.length == 26) {
+		deal["hand"] = formatCardsDisplayed(myCardsDisplayed)
+		savedeal(dealnumber, deal)
+	}
+}
+//Script,onNewDeal 
+removeAds(true);
+newdeal = true
 //Script,onDealEnd 
 dealnumber = getDealNumber()
-localStorage.removeItem('BidWithBen' + dealnumber)
+removedeal(dealnumber)
 console.log("onDealEnd - Deal removed")
+newdeal = true;
 
+//Script,onAuctionEnd
+if (tableType() == "no") {
+	dealnumber = getDealNumber()
+	removedeal(dealnumber)
+	console.log("onAuctionEnd - Deal removed")
+	newdeal = true
+}
 //Script,onBeforePlayingCard
-console.log(Date.now() + " onMyBeforePlayingCard " + getPlayedCards() + " turn " + whosTurn());
+console.log(getNow(true) + " onMyBeforePlayingCard " + getPlayedCards() + " turn " + whosTurn());
 
 //Script,onMyTurnToBid
-hand = deal["hand"]
-// Due to timing we don't have the hand, so we try to get it again
-if (hand.length < 13)  {
-	console.log(Date.now() + " Updated hand due to timing")
-	deal["hand"] = formatCards(getMyCards())
-}
 var ctx = getContext()
-deal["ctx"] = ctx
-var user = deal["user"]
-var dealer = deal["dealer"]
-var seat = deal["seat"]
-var vul = deal["vul"]
-var url = "http://localhost:8085/bid?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand
-console.log("onMyTurnToBidXX Requesting " + url)
-try {
-	fetch(url, {
-		cache: "no-store"
-	})
-	.then(function(response) {
-		// Check if the response is successful
-		if (!response.ok) {
-			// Log the response status and status text
-			console.error('Response not OK:', response.status, response.statusText);
-			
-			// Parse the response body as JSON and handle the error
-			return response.json().then(function(errorResponse) {
-				// Extract the error message from the JSON response
-				const errorMessage = errorResponse.error || 'Unknown error occurred';
-				
-				// Show the error message to the user
-				alert(errorMessage);
-				throw new Error(errorMessage); // Throw an error to skip to the catch block
-			});
-		}
-		
-		// If response is OK, parse the response as JSON
-		return response.json();
-	})
-	.then(function(data) {
-		// Proceed with the logic if the response was successful
-		makeBid(data.bid, 0, "");
-	})
-	.catch(function(error) {
-		// Catch any errors that occurred during the fetch or processing
-		console.error('Error occurred:', error.message);
-	});	
-} catch (error) {
-	// Handle any errors that occur during the fetch request
-	alert('Error fetching data:', error.message);
-	// Show an error message to the user or perform other error handling actions
+console.log(getNow(true) + " onMyTurnToBidBEN");
+if ((ctx.length >= 8) && (ctx.endsWith('------'))) {
+	console.log(Date.now() + " onMyTurnToBid called after bidding ended " + ctx);	
+} else {
+	// Give BBO time to get stuff in place
+	setTimeout(function () {
+		BENsTurnToBid(deal);
+	}, 2000)
 }
-
-// Before bid update and save deal - BBO seems to forget the bid if we leave after the bid / play
-localStorage.setItem('BidWithBen' + dealnumber, JSON.stringify(deal))
 
 //Script,onMyTurnToPlay 
-console.log(getNow(true) + " onMyTurnToPlayXX");
-if (getDummyCards().length == 13) {
-	deal["dummy"] = formatCards(getDummyCards())
-	// We update both hand as BBO might rotate the deal
-	if (deal["dummy"] == deal["hand"]) {
-		deal["hand"] = formatCards(getDeclarerCards())
-		deal["seat"] = getDeclarerDirection()
-	}	 
-}
-
-deal["played"] = updatePlayedCards(deal["played"])
-
-var dummyhand = deal["dummy"]
-hand = deal["hand"]
-var ctx = getContext()
-deal["ctx"] = ctx
-var user = deal["user"]
-var dealer = deal["dealer"]
-var seat = deal["seat"]
-var vul = deal["vul"]
-if (deal["played"].length == 0) {
-	var url = "http://localhost:8085/lead?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand;
-
+console.log(getNow(true) + " onMyTurnToPlayBEN");
+if (deal["played"] && deal["played"].length > 103) {
+	// Ignore the event play is over
 } else {
-	var playedCardsXX = formatCardsPlayed(deal["played"])
-	var url = "http://localhost:8085/play?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
-		"&dummy=" + dummyhand + "&played=" + playedCardsXX;
+	setTimeout(function () {
+		BENsTurnToPlay();
+	}, 1000)
 }
-console.log("onMyTurnToPlayXX Requesting " + url)
-try {
-	fetch(url, {
-		cache: "no-store"
-	})
-	.then(function(response) {
-		// Check if the response is successful
-		if (!response.ok) {
-			// Log the response status and status text
-			console.error('Response not OK:', response.status, response.statusText);
-			
-			// Parse the response body as JSON and handle the error
-			return response.json().then(function(errorResponse) {
-				// Extract the error message from the JSON response
-				const errorMessage = errorResponse.error || 'Unknown error occurred';
-				
-				// Show the error message to the user
-				alert(errorMessage);
-				throw new Error(errorMessage); // Throw an error to skip to the catch block
-			});
-		}
-		
-		// If response is OK, parse the response as JSON
-		return response.json();
-	})
-	.then(function(data) {
-		// Proceed with the logic if the response was successful
-		playCardByValue(data.card)
-	})
-	.catch(function(error) {
-		// Catch any errors that occurred during the fetch or processing
-		console.error('Error occurred:', error.message);
-	});
-	
-} catch (error) {
-	// Handle any errors that occur during the fetch request
-	alert('Error fetching data:', error.message);
-	// Show an error message to the user or perform other error handling actions
-}
-
-// Before play update and save deal - BBO seems to forget the bid if we leave after the bid / play
-localStorage.setItem('BidWithBen' + dealnumber, JSON.stringify(deal))
-
 //Script,onNewPlayedCard 
 // This event calls onMyTurnToPlay, so make no change here
 if (!isMyTurnToPlay()) {
 	deal["played"] = updatePlayedCards(deal["played"])
+	savedeal(dealnumber, deal)
 }
-localStorage.setItem('BidWithBen' + dealnumber, JSON.stringify(deal))
 
-//Script,onMyCardsDisplayed 
-if (myCardsDisplayed.length == 26) {
-	console.log(Date.now() + " Updated hand in onMyCardsDisplayed")
-	deal["hand"] = formatCardsDisplayed(myCardsDisplayed)
-	localStorage.setItem('BidWithBen' + dealnumber, JSON.stringify(deal))
-}
 //Script
 
 //Script,onDataLoad
 
 cardExists = function (card, array) {
-    return array.some(function(existingCard) {
-        // Assuming cards are objects with unique identifiers like 'id'
-        return existingCard === card
-    });
+	return array.some(function (existingCard) {
+		// Assuming cards are objects with unique identifiers like 'id'
+		return existingCard === card
+	});
 }
-
-var playedCardsXX = ''
-var deal = {}
+newdeal = true
+deal = {}
 getSuit = function (txt) {
 	let t = txt;
 	switch (t) {
@@ -264,19 +159,19 @@ formatCardsPlayed = function (cards) {
 	return played;
 }
 
-formatCardsDisplayed = function(cards) {
-    let played = "";
+formatCardsDisplayed = function (cards) {
+	let played = "";
 	let suits = ["", "", "", ""];
-    // Loop over the string in steps of 2 characters
-    for (let i = 0; i < cards.length; i += 2) {
-        let card = cards.substring(i, i + 2); // Get a pair of characters from the string
-        let suit = getSuitPlayed(card.charAt(1)); // Get the suit from the second character
-        if (suit != -1) {
-			suits[suit] = c[0].replace("1", "T") + suits[suit];
+	// Loop over the string in steps of 2 characters
+	for (let i = 0; i < cards.length; i += 2) {
+		let card = cards.substring(i, i + 2); // Get a pair of characters from the string
+		let suit = getSuit(card.charAt(1)); // Get the suit from the second character
+		if (suit != -1) {
+			suits[suit] = card[0].replace("1", "T") + suits[suit];
 		}
-    }
+	}
 	played = suits.join(".")
-    return played;
+	return played;
 }
 
 removeAds = function (on) {
@@ -292,7 +187,7 @@ removeAds = function (on) {
 
 removeAds(true);
 
-updatePlayedCards = function  (recordedPlays) {
+updatePlayedCards = function (recordedPlays) {
 	let cards = getPlayedCards()
 
 	for (let i = 0; i < cards.length; i += 2) {
@@ -304,16 +199,27 @@ updatePlayedCards = function  (recordedPlays) {
 				recordedPlays.push(played);
 			}
 		}
-	}	
+	}
 	return recordedPlays;
 }
 
-function triggerMouseEvent(node, eventType) {
+triggerMouseEvent = function (node, eventType) {
 	let clickEvent = document.createEvent('MouseEvents');
 	clickEvent.initEvent(eventType, true, true);
 	node.dispatchEvent(clickEvent);
 }
 
+makePlay = function(cv) {
+    var card = getCardByValue(cv);
+    if (card != null) {
+		triggerMouseEvent(card, 'mouseover');
+		triggerMouseEvent(card, 'mousedown');
+		triggerMouseEvent(card, 'mouseup');
+		//card.click();
+	}
+}
+
+// Check if this should be changed to SelectBid
 makeBid = function (bid, artificial, explain) {
 	let elBiddingBox = parent.document.querySelector('.biddingBoxClass');
 	if (elBiddingBox != null) {
@@ -323,15 +229,15 @@ makeBid = function (bid, artificial, explain) {
 		let eventInput = new Event('input');
 		alertField.dispatchEvent(eventInput);
 		if (elBiddingButtons != null) {
-			if ( elBiddingBox.style.display != 'none') {
+			if (elBiddingBox.style.display != 'none') {
 				if (artificial == 1) elBiddingButtons[15].click();
-				if (bid == 'PASS') triggerMouseEvent (elBiddingButtons[12], 'mousedown');
+				if (bid == 'PASS') triggerMouseEvent(elBiddingButtons[12], 'mousedown');
 				if (bid == 'PASS') elBiddingButtons[12].click();
-				if (bid == 'P') triggerMouseEvent (elBiddingButtons[12], 'mousedown');
+				if (bid == 'P') triggerMouseEvent(elBiddingButtons[12], 'mousedown');
 				if (bid == 'P') elBiddingButtons[12].click();
-				if (bid == 'X') triggerMouseEvent (elBiddingButtons[13], 'mousedown');
+				if (bid == 'X') triggerMouseEvent(elBiddingButtons[13], 'mousedown');
 				if (bid == 'X') elBiddingButtons[13].click();
-				if (bid == 'XX') triggerMouseEvent (elBiddingButtons[14], 'mousedown');
+				if (bid == 'XX') triggerMouseEvent(elBiddingButtons[14], 'mousedown');
 				if (bid == 'XX') elBiddingButtons[14].click();
 				if (bid[0] == '1') elBiddingButtons[0].click();
 				if (bid[0] == '2') elBiddingButtons[1].click();
@@ -340,20 +246,273 @@ makeBid = function (bid, artificial, explain) {
 				if (bid[0] == '5') elBiddingButtons[4].click();
 				if (bid[0] == '6') elBiddingButtons[5].click();
 				if (bid[0] == '7') elBiddingButtons[6].click();
-				if (bid[1] == 'C') triggerMouseEvent (elBiddingButtons[7], 'mousedown');
+				if (bid[1] == 'C') triggerMouseEvent(elBiddingButtons[7], 'mousedown');
 				if (bid[1] == 'C') elBiddingButtons[7].click();
-				if (bid[1] == 'D') triggerMouseEvent (elBiddingButtons[8], 'mousedown');
+				if (bid[1] == 'D') triggerMouseEvent(elBiddingButtons[8], 'mousedown');
 				if (bid[1] == 'D') elBiddingButtons[8].click();
-				if (bid[1] == 'H') triggerMouseEvent (elBiddingButtons[9], 'mousedown');
+				if (bid[1] == 'H') triggerMouseEvent(elBiddingButtons[9], 'mousedown');
 				if (bid[1] == 'H') elBiddingButtons[9].click();
-				if (bid[1] == 'S') triggerMouseEvent (elBiddingButtons[10], 'mousedown');
+				if (bid[1] == 'S') triggerMouseEvent(elBiddingButtons[10], 'mousedown');
 				if (bid[1] == 'S') elBiddingButtons[10].click();
-				if (bid[1] == 'N') triggerMouseEvent (elBiddingButtons[11], 'mousedown');
+				if (bid[1] == 'N') triggerMouseEvent(elBiddingButtons[11], 'mousedown');
 				if (bid[1] == 'N') elBiddingButtons[11].click();
 			}
 		}
 	};
 }
 
+addSpinner = function () {
+	// Create the spinner element
+	const spinner = parent.document.createElement('div');
+	spinner.classList.add('spinner');
+	spinner.style.width = '50px';
+	spinner.style.height = '50px';
+	spinner.style.border = '5px solid #f3f3f3';
+	spinner.style.borderRadius = '50%';
+	spinner.style.borderTop = '5px solid #3498db';
+	spinner.style.animation = 'spin 1s linear infinite';
 
+	// Create the overlay element
+	const overlay = parent.document.createElement('div');
+	overlay.classList.add('overlay');
+	overlay.style.position = 'fixed';
+	overlay.style.top = '50%'; // Adjust top position to center vertically
+	overlay.style.left = '50%'; // Adjust left position to center horizontally
+	overlay.style.transform = 'translate(-50%, -50%)'; // Center the overlay
+	overlay.style.width = '200px'; // Adjust the width of the overlay
+	overlay.style.height = '200px'; // Adjust the height of the overlay
+	overlay.style.backgroundColor = 'rgba(0, 0, 0, 0)'; // Adjust the transparency
+	overlay.style.zIndex = '9999';
+	overlay.style.display = 'flex';
+	overlay.style.justifyContent = 'center';
+	overlay.style.alignItems = 'center';
+	// Append the spinner to the overlay
+	overlay.appendChild(spinner);
+
+	// Append the overlay to the document body
+	parent.document.body.appendChild(overlay);
+
+	return overlay
+}
+
+BENsTurnToBid = function () {
+	var overlay = addSpinner()
+	if (newdeal) {
+		initdeal()		
+	}
+	try {
+
+		// Due to timing we don't have the hand, so we try to get it again
+		if (!deal["hand"]  || deal["hand"].length < 13) {
+			console.log(Date.now() + " Updated hand due to timing")
+			deal["hand"] = formatCards(getMyCards())
+		}
+
+		var ctx = getContext()
+		deal["ctx"] = ctx
+		var user = deal["user"]
+		var dealer = deal["dealer"]
+		var seat = deal["seat"]
+		var vul = deal["vul"]
+		hand = deal["hand"]
+		var url = "http://localhost:8085/bid?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand
+		console.log("onMyTurnToBidXX Requesting " + url)
+		try {
+			fetch(url, {
+				cache: "no-store"
+			})
+				.then(function (response) {
+					parent.document.body.removeChild(overlay);
+					console.log("onMyTurnToBidXX Response from " + url)
+					// Check if the response is successful
+					if (!response.ok) {
+						// Log the response status and status text
+						console.error('Response not OK:', response.status, response.statusText);
+
+						// Parse the response body as JSON and handle the error
+						return response.json().then(function (errorResponse) {
+							// Extract the error message from the JSON response
+							const errorMessage = errorResponse.error || 'Unknown error occurred';
+
+							// Show the error message to the user
+							alert(errorMessage);
+							throw new Error(errorMessage); // Throw an error to skip to the catch block
+						});
+					}
+
+					// If response is OK, parse the response as JSON
+					return response.json();
+				})
+				.then(function (data) {
+					// Proceed with the logic if the response was successful
+					console.log(" onMyTurnToBid BEN would like to bid:",data.bid)
+					makeBid(data.bid, 0, "");
+				})
+				.catch(function (error) {
+					// Catch any errors that occurred during the fetch or processing
+					console.error('Error occurred:', error.message);
+				});
+		} catch (error) {
+			// Handle any errors that occur during the fetch request
+			alert('Error fetching data:', error.message);
+			// Show an error message to the user or perform other error handling actions
+			parent.document.body.removeChild(overlay);
+		}
+		// Before bid update and save deal - BBO seems to forget the bid if we leave after the bid / play
+		savedeal(dealnumber, deal)
+	} catch (error) {
+		parent.document.body.removeChild(overlay);
+	}
+}
+
+BENsTurnToPlay = function () {
+	var overlay = addSpinner();
+	if (newdeal) {
+		initdeal()
+	}
+	try {
+		// if (myCardsDisplayed.length == 26) {
+		// 	console.log(Date.now() + " Updated hand with myCardsDisplayed " + myCardsDisplayed + " " + deal["hand"])
+		// 	deal["hand"] = formatCardsDisplayed(myCardsDisplayed)
+		// }
+
+		// Due to timing we don't have the hand, so we try to get it again
+		if (!deal["hand"]  ||  deal["hand"].length < 13) {
+			console.log(Date.now() + " Updated hand due to timing")
+			deal["hand"] = formatCards(getMyCards())
+		}
+
+		if (getDummyCards().length == 13) {
+			deal["dummy"] = formatCards(getDummyCards())
+			// We update both hand as BBO might rotate the deal
+			if (deal["dummy"] == deal["hand"]) {
+				console.log(Date.now() + " same hand for dummy and hand")
+				deal["hand"] = formatCards(getDeclarerCards())
+				deal["seat"] = getDeclarerDirection()
+				console.log(Date.now() + " same hand for dummy and hand")
+				console.log(deal)
+			}
+		}
+		
+		deal["played"] = updatePlayedCards(deal["played"])
+		
+		var dummyhand = deal["dummy"]
+		hand = deal["hand"]
+		var ctx = getContext()
+		deal["ctx"] = ctx
+		var user = deal["user"]
+		var dealer = deal["dealer"]
+		var seat = deal["seat"]
+		var vul = deal["vul"]
+		if (deal["played"].length == 0) {
+			var url = "http://localhost:8085/lead?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand;
+		
+		} else {
+			var playedCardsXX = formatCardsPlayed(deal["played"])
+			if (dummyhand == "") {
+				alert("No dummy")
+			}
+			var url = "http://localhost:8085/play?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
+				"&dummy=" + dummyhand + "&played=" + playedCardsXX;
+		}
+		console.log("onMyTurnToPlayXX Requesting " + url)
+		try {
+			fetch(url, {
+				cache: "no-store"
+			})
+				.then(function (response) {
+					parent.document.body.removeChild(overlay);
+					console.log("onMyTurnToPlayXX Responce from " + url)
+					// Check if the response is successful
+					if (!response.ok) {
+						// Log the response status and status text
+						console.error('Response not OK:', response.status, response.statusText);
+		
+						// Parse the response body as JSON and handle the error
+						return response.json().then(function (errorResponse) {
+							// Extract the error message from the JSON response
+							const errorMessage = errorResponse.error || 'Unknown error occurred';
+		
+							// Show the error message to the user
+							alert(errorMessage);
+							throw new Error(errorMessage); // Throw an error to skip to the catch block
+						});
+					}
+		
+					// If response is OK, parse the response as JSON
+					return response.json();
+				})
+				.then(function (data) {
+					// Proceed with the logic if the response was successful
+					console.log(" onMyTurnToPlay BEN would like to play:",data.card)
+					makePlay(data.card[1].replace("T", "10") + data.card[0])
+				})
+				.catch(function (error) {
+					// Catch any errors that occurred during the fetch or processing
+					console.error('Error occurred:', error.message);
+				});
+		
+		} catch (error) {
+			// Handle any errors that occur during the fetch request
+			alert('Error fetching data:', error.message);
+			// Show an error message to the user or perform other error handling actions
+			parent.document.body.removeChild(overlay);
+		}
+		
+		// Before play update and save deal - BBO seems to forget the bid if we leave after the bid / play
+		savedeal(dealnumber, deal)
+	} catch (error) {
+		parent.document.body.removeChild(overlay);
+	}
+}
+
+removedeal = function (dealnumber) {
+	// Loop through all keys in localStorage
+	// Should perhaps include a table type
+	for (var key in localStorage) {
+		// Check if the key starts with 'BidWithBen' and ends with the value of dealnumber
+		if (key.startsWith('BidWithBen')) {
+			// If the key matches, remove the item from localStorage
+			localStorage.removeItem(key);
+		}
+	}
+}
+
+savedeal = function (dealnumber, deal) {
+	if (deal["dummy"] == deal["hand"]) {
+		alert ("Hand and dummy are the same - BBO rotated the deal")
+	} else {
+		localStorage.setItem('BidWithBen' + dealnumber, JSON.stringify(deal))
+	}
+}
+
+initdeal = function() {
+	try {
+		dealnumber = getDealNumber()
+		dealString = localStorage.getItem('BidWithBen' + dealnumber);
+		if (dealString) {
+			deal = JSON.parse(dealString);
+			console.log(deal);
+		}
+		if (!dealString || !deal["number"]) {
+			deal = {}
+			deal["number"] = dealnumber
+			deal["dealer"] = getDealerDirection()
+			deal["vul"] = ourVulnerability() + areTheyVulnerable()
+			deal["seat"] = mySeat()
+			deal["user"] = getActivePlayer()
+			deal["hand"] = ""
+			deal["ctx"] = ""
+			deal["dummy"] = ""
+			deal["played"] = []
+	
+			localStorage.setItem('BidWithBen' + dealnumber, JSON.stringify(deal))
+		}
+		console.log("onMyDeal", JSON.stringify(deal))
+	} catch (error) {
+		console.log(error)
+	}
+	return deal;
+	
+}
 //Script
