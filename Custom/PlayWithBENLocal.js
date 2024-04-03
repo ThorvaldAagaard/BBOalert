@@ -1,4 +1,5 @@
-
+//https://remote.aalborgdata.dk
+//http://localhost:8085
 Import, https://github.com/stanmaz/BBOalert/blob/master/Scripts/test/PlayWithBEN_bboalert.js
 Option, Robot bidding
 //Script,onDummyCardsDisplayed
@@ -315,7 +316,7 @@ BENsTurnToBid = function () {
 		var seat = deal["seat"]
 		var vul = deal["vul"]
 		hand = deal["hand"]
-		var url = "https://remote.aalborgdata.dk/bid?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand
+		var url = "http://localhost:8085/bid?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand
 		console.log("onMyTurnToBidXX Requesting " + url)
 		try {
 			fetch(url, {
@@ -409,14 +410,14 @@ BENsTurnToPlay = function () {
 			return
 		}
 		if (deal["played"].length == 0) {
-			var url = "https://remote.aalborgdata.dk/lead?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand;
+			var url = "http://localhost:8085/lead?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand;
 		
 		} else {
 			var playedCardsXX = formatCardsPlayed(deal["played"])
 			if (dummyhand == "") {
 				alert("No dummy")
 			}
-			var url = "https://remote.aalborgdata.dk/play?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
+			var url = "http://localhost:8085/play?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
 				"&dummy=" + dummyhand + "&played=" + playedCardsXX;
 		}
 		console.log("onMyTurnToPlayXX Requesting " + url)
