@@ -71,6 +71,7 @@ if ((ctx.length >= 8) && (ctx.endsWith('------'))) {
 console.log(getNow(true) + " onMyTurnToPlayBEN");
 if (deal["played"] && deal["played"].length > 103) {
 	// Ignore the event play is over
+	console.log(Date.now() + " onMyTurnToPlay called after play ended ");	
 } else {
 	setTimeout(function () {
 		BENsTurnToPlay();
@@ -271,7 +272,7 @@ addSpinner = function () {
 	spinner.style.border = '5px solid #f3f3f3';
 	spinner.style.borderRadius = '50%';
 	spinner.style.borderTop = '5px solid #3498db';
-	spinner.style.animation = 'spin 1s linear infinite';
+	spinner.style.animation = 'loader 1s linear infinite';
 
 	// Create the overlay element
 	const overlay = parent.document.createElement('div');
@@ -280,8 +281,8 @@ addSpinner = function () {
 	overlay.style.top = '50%'; // Adjust top position to center vertically
 	overlay.style.left = '50%'; // Adjust left position to center horizontally
 	overlay.style.transform = 'translate(-50%, -50%)'; // Center the overlay
-	overlay.style.width = '200px'; // Adjust the width of the overlay
-	overlay.style.height = '200px'; // Adjust the height of the overlay
+	overlay.style.width = '160px'; // Adjust the width of the overlay
+	overlay.style.height = '160px'; // Adjust the height of the overlay
 	overlay.style.backgroundColor = 'rgba(0, 0, 0, 0)'; // Adjust the transparency
 	overlay.style.zIndex = '9999';
 	overlay.style.display = 'flex';
@@ -292,8 +293,17 @@ addSpinner = function () {
 
 	// Append the overlay to the document body
 	parent.document.body.appendChild(overlay);
-
+	console.log("adding spinner")
 	return overlay
+}
+
+removeSpinner = function (overlay) {
+	if (overlay) {
+		parent.document.body.removeChild(overlay);
+		console.log("removing spinner")
+		overlay = null;
+	}
+	return overlay;
 }
 
 BENsTurnToBid = function () {
@@ -305,7 +315,10 @@ BENsTurnToBid = function () {
 
 		// Due to timing we don't have the hand, so we try to get it again
 		if (!deal["hand"]  || deal["hand"].length < 13) {
-			console.log(Date.now() + " Updated hand due to timing")
+			console.log(Date.now() + " Updated hand due to timing" + deal["hand"] + " " + myCardsDisplayed)
+			if (getMyCards().length > 26) {
+				alert("Hand is too big, something is wrong")
+			}
 			deal["hand"] = formatCards(getMyCards())
 		}
 
@@ -323,10 +336,10 @@ BENsTurnToBid = function () {
 				cache: "no-store"
 			})
 				.then(function (response) {
-					parent.document.body.removeChild(overlay);
 					console.log("onMyTurnToBidXX Response from " + url)
 					// Check if the response is successful
 					if (!response.ok) {
+						overlay = removeSpinner(overlay);
 						// Log the response status and status text
 						console.error('Response not OK:', response.status, response.statusText);
 
@@ -348,8 +361,10 @@ BENsTurnToBid = function () {
 					// Proceed with the logic if the response was successful
 					console.log(" onMyTurnToBid BEN would like to bid:",data.bid)
 					makeBid(data.bid, 0, "");
+					overlay = removeSpinner(overlay);
 				})
 				.catch(function (error) {
+					overlay = removeSpinner(overlay);
 					// Catch any errors that occurred during the fetch or processing
 					console.error('Error occurred:', error.message);
 				});
@@ -357,12 +372,12 @@ BENsTurnToBid = function () {
 			// Handle any errors that occur during the fetch request
 			alert('Error fetching data:', error.message);
 			// Show an error message to the user or perform other error handling actions
-			parent.document.body.removeChild(overlay);
+			overlay = removeSpinner(overlay);
 		}
 		// Before bid update and save deal - BBO seems to forget the bid if we leave after the bid / play
 		savedeal(dealnumber, deal)
 	} catch (error) {
-		parent.document.body.removeChild(overlay);
+		overlay = removeSpinner(overlay);
 	}
 }
 
@@ -379,7 +394,10 @@ BENsTurnToPlay = function () {
 
 		// Due to timing we don't have the hand, so we try to get it again
 		if (!deal["hand"]  ||  deal["hand"].length < 13) {
-			console.log(Date.now() + " Updated hand due to timing")
+			console.log(Date.now() + " Updated hand due to timing" + deal["hand"] + " " + myCardsDisplayed)
+			if (getMyCards().length > 26) {
+				alert("Hand is too big, something is wrong")
+			}
 			deal["hand"] = formatCards(getMyCards())
 		}
 
@@ -390,14 +408,12 @@ BENsTurnToPlay = function () {
 				console.log(Date.now() + " same hand for dummy and hand")
 				deal["hand"] = formatCards(getDeclarerCards())
 				deal["seat"] = getDeclarerDirection()
-				console.log(Date.now() + " same hand for dummy and hand")
 				console.log(deal)
 			}
 		}
 		
 		deal["played"] = updatePlayedCards(deal["played"])
 		
-		var dummyhand = deal["dummy"]
 		hand = deal["hand"]
 		var ctx = getContext()
 		deal["ctx"] = ctx
@@ -406,16 +422,19 @@ BENsTurnToPlay = function () {
 		var seat = deal["seat"]
 		var vul = deal["vul"]
 		if (deal["played"].length == 52) {
-			console.log("onMyTurnToPlayXX Board is finished")
+			console.log("onMyTurnToPlayXX called, but Board is finished");
+			overlay = removeSpinner(overlay);
 			return
 		}
 		if (deal["played"].length == 0) {
 			var url = "http://localhost:8085/lead?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand;
 		
 		} else {
+			var dummyhand = deal["dummy"]
 			var playedCardsXX = formatCardsPlayed(deal["played"])
 			if (dummyhand == "") {
 				alert("No dummy")
+				var dummyhand = deal["dummy"]
 			}
 			var url = "http://localhost:8085/play?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
 				"&dummy=" + dummyhand + "&played=" + playedCardsXX;
@@ -426,10 +445,10 @@ BENsTurnToPlay = function () {
 				cache: "no-store"
 			})
 				.then(function (response) {
-					parent.document.body.removeChild(overlay);
 					console.log("onMyTurnToPlayXX Response from " + url)
 					// Check if the response is successful
 					if (!response.ok) {
+						overlay = removeSpinner(overlay);
 						// Log the response status and status text
 						console.error('Response not OK:', response.status, response.statusText);
 		
@@ -451,8 +470,10 @@ BENsTurnToPlay = function () {
 					// Proceed with the logic if the response was successful
 					console.log(" onMyTurnToPlay BEN would like to play:",data.card)
 					makePlay(data.card[1].replace("T", "10") + data.card[0])
+					overlay = removeSpinner(overlay);
 				})
 				.catch(function (error) {
+					overlay = removeSpinner(overlay);
 					// Catch any errors that occurred during the fetch or processing
 					console.error('Error occurred:', error.message);
 				});
@@ -461,13 +482,13 @@ BENsTurnToPlay = function () {
 			// Handle any errors that occur during the fetch request
 			alert('Error fetching data:', error.message);
 			// Show an error message to the user or perform other error handling actions
-			parent.document.body.removeChild(overlay);
+			overlay = removeSpinner(overlay);
 		}
 		
 		// Before play update and save deal - BBO seems to forget the bid if we leave after the bid / play
 		savedeal(dealnumber, deal)
 	} catch (error) {
-		parent.document.body.removeChild(overlay);
+		overlay = removeSpinner(overlay);
 	}
 }
 
