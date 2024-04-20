@@ -439,6 +439,10 @@ BENsTurnToPlay = function () {
 			var url = "http://localhost:8085/play?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
 				"&dummy=" + dummyhand + "&played=" + playedCardsXX;
 		}
+		var tournamentType = getTournamentType()
+		if (tournamentType != "") {
+			url += "&tournament=" + tournamentType
+		}
 		console.log("onMyTurnToPlayXX Requesting " + url)
 		try {
 			fetch(url, {
@@ -510,6 +514,12 @@ savedeal = function (dealnumber, deal) {
 	} else {
 		localStorage.setItem('BidWithBen' + dealnumber, JSON.stringify(deal))
 	}
+}
+
+getTournamentType = function() {
+    if ($("#navDiv score-panel", parent.window.document).text().indexOf("IMPs") > -1) return "IMP";
+    if ($("#navDiv score-panel", parent.window.document).text().indexOf("MPs") > -1) return "MP";
+    return "";
 }
 
 initdeal = function() {
