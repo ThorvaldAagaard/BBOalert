@@ -1,5 +1,4 @@
-//https://remote.aalborgdata.dk
-//http://localhost:8085
+BBOalert, 2024-04-23 Play with BEN (local)
 Import, https://github.com/stanmaz/BBOalert/blob/master/Scripts/test/PlayWithBEN_bboalert.js
 Option, Robot bidding
 //Script,onDummyCardsDisplayed
