@@ -3,8 +3,9 @@ Import, https://github.com/stanmaz/BBOalert/blob/master/Scripts/test/PlayWithBEN
 Option, Robot bidding
 //Script,onDummyCardsDisplayed
 console.log(Date.now() + " onDummyCardsDisplayedYY " + dummyCardsDisplayed);
-if (deal["played"] && deal["played"].length > 4) {
+if (deal["played"] && deal["played"].length > 4 && deal["dummy"] != "") {
 	// Ignore the display of dummy
+	// But sometimes it might be late, so grab it if we have no dummy
 } else {
 	dummyCardsDisplayed = dummyCardsDisplayed.split(",").join("")
 	if (dummyCardsDisplayed.length == 26) {
@@ -68,6 +69,7 @@ if ((ctx.length >= 8) && (ctx.endsWith('------'))) {
 
 //Script,onMyTurnToPlay 
 console.log(getNow(true) + " onMyTurnToPlayBEN");
+// We need to check if we are dummy, when playing with humans
 if (deal["played"] && deal["played"].length > 103) {
 	// Ignore the event play is over
 	console.log(Date.now() + " onMyTurnToPlay called after play ended ");	
@@ -328,7 +330,8 @@ BENsTurnToBid = function () {
 		var seat = deal["seat"]
 		var vul = deal["vul"]
 		hand = deal["hand"]
-		var url = "https://remote.aalborgdata.dk/bid?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand
+		var dealnumber = getDealNumber()
+		var url = "https://remote.aalborgdata.dk/bid?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand
 		console.log("onMyTurnToBidXX Requesting " + url)
 		try {
 			fetch(url, {
@@ -420,13 +423,14 @@ BENsTurnToPlay = function () {
 		var dealer = deal["dealer"]
 		var seat = deal["seat"]
 		var vul = deal["vul"]
+		var dealnumber = getDealNumber()
 		if (deal["played"].length == 52) {
 			console.log("onMyTurnToPlayXX called, but Board is finished");
 			overlay = removeSpinner(overlay);
 			return
 		}
 		if (deal["played"].length == 0) {
-			var url = "https://remote.aalborgdata.dk/lead?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand;
+			var url = "https://remote.aalborgdata.dk/lead?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand;
 		
 		} else {
 			var dummyhand = deal["dummy"]
@@ -434,8 +438,10 @@ BENsTurnToPlay = function () {
 			if (dummyhand == "") {
 				alert("No dummy")
 				var dummyhand = deal["dummy"]
+				overlay = removeSpinner(overlay);
+				return
 			}
-			var url = "https://remote.aalborgdata.dk/play?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
+			var url = "https://remote.aalborgdata.dk/play?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
 				"&dummy=" + dummyhand + "&played=" + playedCardsXX;
 		}
 		var tournamentType = getTournamentType()
@@ -461,7 +467,7 @@ BENsTurnToPlay = function () {
 							const errorMessage = errorResponse.error || 'Unknown error occurred';
 		
 							// Show the error message to the user
-							alert(errorMessage);
+							console.error('Error:', errorMessage);
 							throw new Error(errorMessage); // Throw an error to skip to the catch block
 						});
 					}
@@ -483,7 +489,7 @@ BENsTurnToPlay = function () {
 		
 		} catch (error) {
 			// Handle any errors that occur during the fetch request
-			alert('Error fetching data:', error.message);
+			console.error('Error fetching data:', errorMessage);
 			// Show an error message to the user or perform other error handling actions
 			overlay = removeSpinner(overlay);
 		}

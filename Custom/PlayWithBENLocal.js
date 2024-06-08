@@ -3,8 +3,9 @@ Import, https://github.com/stanmaz/BBOalert/blob/master/Scripts/test/PlayWithBEN
 Option, Robot bidding
 //Script,onDummyCardsDisplayed
 console.log(Date.now() + " onDummyCardsDisplayedYY " + dummyCardsDisplayed);
-if (deal["played"] && deal["played"].length > 4) {
+if (deal["played"] && deal["played"].length > 4 && deal["dummy"] != "") {
 	// Ignore the display of dummy
+	// But sometimes it might be late, so grab it if we have no dummy
 } else {
 	dummyCardsDisplayed = dummyCardsDisplayed.split(",").join("")
 	if (dummyCardsDisplayed.length == 26) {
@@ -328,7 +329,8 @@ BENsTurnToBid = function () {
 		var seat = deal["seat"]
 		var vul = deal["vul"]
 		hand = deal["hand"]
-		var url = "http://localhost:8085/bid?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand
+		var dealnumber = getDealNumber()
+		var url = "http://localhost:8085/bid?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand
 		console.log("onMyTurnToBidXX Requesting " + url)
 		try {
 			fetch(url, {
@@ -420,13 +422,14 @@ BENsTurnToPlay = function () {
 		var dealer = deal["dealer"]
 		var seat = deal["seat"]
 		var vul = deal["vul"]
+		var dealnumber = getDealNumber()
 		if (deal["played"].length == 52) {
 			console.log("onMyTurnToPlayXX called, but Board is finished");
 			overlay = removeSpinner(overlay);
 			return
 		}
 		if (deal["played"].length == 0) {
-			var url = "http://localhost:8085/lead?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand;
+			var url = "http://localhost:8085/lead?user=" + user + "&dealer=" + dealer + "&seat=" + "&dealno=" + dealnumber + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand;
 		
 		} else {
 			var dummyhand = deal["dummy"]
@@ -434,8 +437,10 @@ BENsTurnToPlay = function () {
 			if (dummyhand == "") {
 				alert("No dummy")
 				var dummyhand = deal["dummy"]
+				overlay = removeSpinner(overlay);
+				return
 			}
-			var url = "http://localhost:8085/play?user=" + user + "&dealer=" + dealer + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
+			var url = "http://localhost:8085/play?user=" + user + "&dealer=" + dealer + "&seat=" + "&dealno=" + dealnumber + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
 				"&dummy=" + dummyhand + "&played=" + playedCardsXX;
 		}
 		var tournamentType = getTournamentType()
