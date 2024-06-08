@@ -35,6 +35,7 @@ Version : 8.0.11
     + [Web storage support](#web-storage-support)
       - [Google Docs](#google-docs)
       - [GoogleDrive](#googledrive)
+      - [OneDrive](#onedrive)
       - [Github](#github)
       - [Dropbox](#dropbox)
       - [Blogger](#blogger)
@@ -156,7 +157,8 @@ The "Settings" menu contains commands to enable/disable features :
 - <b>Hover BBOalert Tabs</b> : if enabled the BBOalert panels are selected by moving the mouse over the corresponding button at the top of the BBOalert panel
 - <b>Hover BBO Tabs</b> : if enabled the BBO tabs at the right side are selected by moving the mouse over the tab
 - <b>Collapse Options</b> : if enabled the mutually exclusive blocks of data are grouped together and only the selected block is shown. This feature is particullary usefull to save space on the panel when many blocks are defined
-
+- <b>Disable recording</b> : if set, the manual alerts are not recorded
+  
 You will find detailed information later in this text but before you continue to read it it is recommended to get familiar with the basic BBOalert functions by following the [tutorial](Tutorial/GettingStarted.pdf).
 
 ## Data import/export
@@ -435,9 +437,21 @@ Almost everyone on BBO is using the SAYC bidding system. But SAYC is not the wor
 
 To solve this problem, the keyword 'Option' followed by the option name are used. The optional block of code is ended by another optional block or by bare 'Option' keyword. The selectable options will be displayed on the red "Options" panel.
 
-The subsequent options with the common prefix word will be grouped automatically. Within the group only one option can be selected to avoid conflicting codes. You are free to disable any option. Initially the first member of each group is enabled.
+The subsequent options with the common prefix word will be grouped automatically. Within the group only one option can be selected to avoid conflicting codes (mutually exclusive options). You are free to disable any option. Initially the first member of each group is enabled. This feature is typically used for : 
 
-It is recommended to provide all overcalls in optional code blocks for each possible opening. This will allow you to unselect portions of code if necessary.
+- defensive bidding depending on the system played by the opponents. It is recommended to provide all overcalls in optional code blocks for each possible opening. This will allow you to unselect portions of code if necessary. Example :
+```
+    Option,vs1NT weak
+    ... code for overcalls after weak 1NT opening
+    Option,vs1NT strong
+    ... code for overcalls after strong 1NT opening
+```
+- disabling by default the recorded alerts by creating two mutually exclusive options. The prefix word **Recorded** may be replaced by a word of your choice.
+```
+    Option,Recorded OFF
+    Option,Recorded ON 
+```
+
 
 Optional blocks of data can be used also for :
 - vulnerability-dependent openings by using @n or @v tags (our vulnerability) or @N or @V (opponent's vulnerability)
@@ -754,7 +768,22 @@ The public URL can be obtained in the following way :
 - select the file with the right mouse button
 - select the "Get link" command
 - make sure that under "General Access" the "Anyone with the link" and "Viewer" options are selected
-- Press the “Copy link” button 
+- Press the “Copy link” button
+
+#### OneDrive
+
+The data can be imported from text files stored in OneDrive cloud. The .txt file extension must be used. The URL link for public viewing should be used with the “Import” record. Note : the file size is not limited.
+
+The public URL can be obtained in the following way :
+
+- open the OneDrive folder containing the file
+- select the file with the right mouse button
+- select the "Share" command
+- By default the link will allow editing the file. To avoid uncontrolled file editing by anyone, it is recommended to restrict the link to the view permission : 
+    - Click at the "Anyone with the link can edit"
+    - In the new dialog box change “Can edit” field into “Can view” and press “Apply” button
+- make sure that under "Copy Link" the "Anyone with the link can view" is selected
+- Press the “Copy” button
 
 #### Github
        
