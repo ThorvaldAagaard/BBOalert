@@ -435,7 +435,7 @@ BENsTurnToPlay = function () {
 			var dummyhand = deal["dummy"]
 			var playedCardsXX = formatCardsPlayed(deal["played"])
 			if (dummyhand == "") {
-				alert("No dummy")
+				console.log("No dummy")
 				var dummyhand = deal["dummy"]
 				overlay = removeSpinner(overlay);
 				return
