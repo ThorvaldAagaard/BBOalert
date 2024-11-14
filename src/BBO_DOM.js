@@ -166,7 +166,7 @@ function keyboardEntrySet() {
 function accountSettingsSet(idx) {
 	try {
 		if (parent.window.document.querySelectorAll('account-screen ion-toggle')[idx].getAttribute("aria-checked") == "true") return 'Y';
-		else return 'N';	
+		else return 'N';
 	} catch {
 		return '';
 	}
@@ -192,11 +192,13 @@ function setOptions(on) {
 	var adPanel0 = parent.document.getElementById("adpanel0");
 	if (adPanel0 == null) return;
 	if (on) {
+		$("#rightDiv .verticalTabBarClass tab-bar-button", parent.document).not("#bboalert-tab").find(".verticalClass").addClass("covered");
 		adPanel0.style.display = 'block';
 		if (adPanel0.getBoundingClientRect().width < 350) {
 			triggerDragAndDrop('.hDividerClass', '.hDividerClass', (adPanel0.getBoundingClientRect().width) - 400);
 		}
 	} else {
+		$("#rightDiv .verticalTabBarClass tab-bar-button", parent.document).not("#bboalert-tab").find(".verticalClass").removeClass("covered")
 		adPanel0.style.display = 'none';
 	}
 	var b = parent.document.getElementById('bboalert-tab');
@@ -229,6 +231,7 @@ function addBBOalertTab() {
 	t.id = 'bboalert-tab';
 	t.onclick = toggleOptions;
 	t.style.color = 'white';
+	t.style.display = "none";
 	t.backgroundColor = 'red';
 	vt.appendChild(t);
 	t = parent.document.getElementById('bboalert-tab');
@@ -383,7 +386,7 @@ function setInputMessage(msg, send, elMessage) {
 	console.log("setInputMessage 1 " + msg);
 	var eventInput = new Event('input');
 	if (elMessage == null) return;
-	msgList = msg.split(/\\n/);
+	var msgList = msg.split(/\\n/);
 	var sb = getChatSendButton(elMessage);
 	// if not chat messaqge set text
 	console.log("setInputMessage sb " + sb);
@@ -1019,7 +1022,7 @@ function redisplayBiddingBox(time = 100) {
 	}, time);
 }
 
-function getBiddingBoxButtons () {
+function getBiddingBoxButtons() {
 	var elBiddingBox = parent.document.querySelector(".biddingBoxClass");
 	if (elBiddingBox == null) return null;
 	var elBiddingButtons = elBiddingBox.querySelectorAll(".biddingBoxButtonClass");
