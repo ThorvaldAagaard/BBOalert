@@ -74,6 +74,7 @@ if (deal["played"] && deal["played"].length > 103) {
 	// Ignore the event play is over
 	console.log(Date.now() + " onMyTurnToPlay called after play ended ");	
 } else {
+	console.log("onMyTurnToPlay played " + deal["played"].length)
 	setTimeout(function () {
 		BENsTurnToPlay();
 	}, 1000)
@@ -522,9 +523,10 @@ savedeal = function (dealnumber, deal) {
 }
 
 getTournamentType = function() {
-    if ($("#navDiv score-panel", parent.window.document).text().indexOf("IMPs") > -1) return "IMP";
-    if ($("#navDiv score-panel", parent.window.document).text().indexOf("MPs") > -1) return "MP";
-    return "";
+	let text = $("#navDiv score-panel", parent.window.document).text().toLowerCase();
+	if (text.indexOf("imp") > -1) return "IMP";
+	if (text.indexOf("mp") > -1) return "MP";
+	return "";
 }
 
 initdeal = function() {

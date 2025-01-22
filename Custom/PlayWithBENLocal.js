@@ -521,8 +521,9 @@ savedeal = function (dealnumber, deal) {
 }
 
 getTournamentType = function() {
-    if ($("#navDiv score-panel", parent.window.document).text().indexOf("IMPs") > -1) return "IMP";
-    if ($("#navDiv score-panel", parent.window.document).text().indexOf("MPs") > -1) return "MP";
+    let text = $("#navDiv score-panel", parent.window.document).text().toLowerCase();
+    if (text.indexOf("imp") > -1) return "IMP";
+    if (text.indexOf("mp") > -1) return "MP";
     return "";
 }
 
