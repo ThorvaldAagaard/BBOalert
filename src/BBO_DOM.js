@@ -13,7 +13,7 @@ function clickOK() {
 }
 
 /**
- * when OK button appears, click it promatically
+ * when OK button appears, click it programatically
  */
 function confirmBid() {
 	var n = 0;
@@ -165,7 +165,7 @@ function keyboardEntrySet() {
  */
 function accountSettingsSet(idx) {
 	try {
-		if (parent.window.document.querySelectorAll('account-screen ion-toggle')[idx].getAttribute("aria-checked") == "true") return 'Y';
+		if (parent.window.document.querySelectorAll('settings-list ion-toggle')[idx].getAttribute("aria-checked") == "true") return 'Y';
 		else return 'N';
 	} catch {
 		return '';
@@ -189,6 +189,7 @@ function buttonOKvisible() {
  * display BBOalert panel if on=true. Otherwise hide it
  */
 function setOptions(on) {
+	setTabEvents();
 	var adPanel0 = parent.document.getElementById("adpanel0");
 	if (adPanel0 == null) return;
 	if (on) {
@@ -206,11 +207,11 @@ function setOptions(on) {
 	var t = b.querySelector('.verticalClass');
 	if (t == null) return;
 	if (on) {
-		t.style.backgroundColor = "green";
+		t.style.backgroundColor = "rgb(49, 96, 191)";
 		t.style.color = 'white';
 	} else {
-		t.style.backgroundColor = "rgb(209, 214, 221)";
-		t.style.color = 'black';
+		t.style.backgroundColor = "white";
+		t.style.color = 'rgba(0, 0, 0, 0.51)';
 	}
 }
 
@@ -347,13 +348,20 @@ function sendAlertChat() {
 	if (cb == null) return;
 	var msgList = replaceSuitSymbols(getChatMessage(), "!").split("<br>");
 	var eventInput = new Event('input');
-	for (let i = 0; i < msgList.length; i++) {
-		elMessage.value = msgList[i];
-		elMessage.dispatchEvent(eventInput);
-		cb.click();
-	}
-	elMessage.value = "";
-	elMessage.dispatchEvent(eventInput);
+
+	var i = 0;
+	var it = setInterval(function () {
+		if (i == msgList.length) {
+			elMessage.value = "";
+			elMessage.dispatchEvent(eventInput);
+			clearInterval(it);
+		} else {
+			elMessage.value = msgList[i];
+			elMessage.dispatchEvent(eventInput);
+			cb.click();
+		}
+		i++;
+	}, 100);
 }
 
 /**
@@ -478,11 +486,26 @@ function getDealEndPanel() {
 function setExplainCallText(txt) {
 	var elExplainCallBox = getExplainCallBox();
 	if (!isVisible(elExplainCallBox)) return;
-	elInput = elExplainCallBox.querySelector('input');
+	var elInput = elExplainCallBox.querySelector('input');
 	if (elInput == null) return;
-	elInput.value = txt;
+	var txtar = txt.split("#");
+	if (txtar.length == 1) {
+		if (txt.length > 40) {
+			txtar = ("See chat#" + txt).split("#");
+		}
+	}
+	elInput.value = txtar[0];
 	var eventInput = new Event('input');
 	elInput.dispatchEvent(eventInput);
+	if (txtar.length > 1) {
+		setChatMessage(txtar[1]);
+	}
+}
+
+function getExplainCallAlert() {
+	var b = translateCall($(".headingClass", getExplainCallBox()).text().split(" ").at(-1));
+	var c = getContext().substring(0, getContext().indexOf(b));
+	return alertHistoryMap.get(c + b);
 }
 
 /**
@@ -586,9 +609,18 @@ function setTabEvents() {
 	var tabs = vt.children;
 	if (tabs == null) return;
 	if (tabs.length == 0) return;
+	window.xxxx = tabs;
+	if (parent.document.querySelector(".verticalTabBarClass").onmouseup == null)
+		parent.document.querySelector(".verticalTabBarClass").onmouseup = function () {
+			console.log("up");
+			$("tab-bar-button", parent.document).css("pointer-events", "");
+		}
 	for (var i = 0; i < tabs.length; i++) {
 		if (tabs[i].textContent.search('BBOalert') == -1) {
-			if (tabs[i].onmousedown == null) tabs[i].onmousedown = setOptionsOff;
+			if (tabs[i].onmousedown == null) tabs[i].onmousedown = function () {
+				$("tab-bar-button", parent.document).has(".selected.covered").css("pointer-events", "none");
+				setOptionsOff();
+			}
 		}
 	}
 }

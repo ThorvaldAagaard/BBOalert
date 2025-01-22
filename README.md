@@ -1,6 +1,6 @@
 # BBOalert
 
-Version : 8.3
+Version : 8.5
 
 **Table Of Content**
 
@@ -34,7 +34,6 @@ Version : 8.3
     + [Using BBO convention card to share data](#using-bbo-convention-card-to-share-data)
     + [Web storage support](#web-storage-support)
       - [Google Docs](#google-docs)
-      - [GoogleDrive (discontinued)](#googledrive)
       - [OneDrive](#onedrive)
       - [Github](#github)
       - [Dropbox](#dropbox)
@@ -158,6 +157,9 @@ The "Settings" menu contains commands to enable/disable features :
 - <b>Hover BBO Tabs</b> : if enabled the BBO tabs at the right side are selected by moving the mouse over the tab
 - <b>Collapse Options</b> : if enabled the mutually exclusive blocks of data are grouped together and only the selected block is shown. This feature is particullary usefull to save space on the panel when many blocks are defined
 - <b>Disable recording</b> : if set, the manual alerts are not recorded
+- <b>Silent startup</b> : if set, BBOalert well remain hidden while starting the BBO session
+- <b>BBOalert button</b> : if set, a button will be used instead of athe tab to toggle the BBOalert panel
+- <b>Deferred alerts</b> : if set, automatic alert explanation will happen only on demand by opponents
   
 You will find detailed information later in this text but before you continue to read it it is recommended to get familiar with the basic BBOalert functions by following the [tutorial](Tutorial/GettingStarted.pdf).
 
@@ -731,10 +733,9 @@ This convention card together with the BBOalert data will become available for y
 BBOalert allows to store data on a file hosting server and to import it dynamically at the beginning of each session. This facilitates the file sharing making sure that both partners use the same data. Actually three sites are supported with their specific limitations due to the particular data security implementation :
 
 - GoogleDocs : The data can be formatted as a pretty readable and printable document. Both partners can edit the document online
-- GoogleDrive : The data can be imported from text files stored in GoogleDrive.
+- OneDrive : only ASCII text files are supported without the possiblity of online editing
 - Github : only ASCII text files are supported. Both partners can edit the data online. To make the data more readable the Markdown format should be used. Markdown format is standard for documentation purposed in Github environment.
 - Dropbox : only ASCII text files are supported without the possiblity of online editing
-- Google Blogger https://www.blogger.com
 
 We assume that you are familiar with the tool of your choice.
        
@@ -759,20 +760,6 @@ The public URL can be obtained in the following way :
 More details can be found in the document :
        
 https://docs.google.com/document/d/1XTma7fZbI0pRU3TtNFOLAG0sUKyBaXFtkQAu90rwfRY/edit?usp=sharing
-       
-#### GoogleDrive
-
-<b>Support discontinued</b>
-
-The data can be imported from text files stored in GoogleDrive cloud. The URL link for public viewing should be used with the “Import” record. Note : the file size is limited to 260k bytes
-
-The public URL can be obtained in the following way :
-       
-- open the GoogleDrive folder containing the file
-- select the file with the right mouse button
-- select the "Get link" command
-- make sure that under "General Access" the "Anyone with the link" and "Viewer" options are selected
-- Press the “Copy link” button
 
 #### OneDrive
 
