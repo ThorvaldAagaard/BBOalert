@@ -74,7 +74,7 @@ if (deal["played"] && deal["played"].length > 103) {
 	// Ignore the event play is over
 	console.log(Date.now() + " onMyTurnToPlay called after play ended ");	
 } else {
-	console.log("onMyTurnToPlay played " + deal["played"].length)
+	console.log("onMyTurnToPlay played " + deal["played"])
 	setTimeout(function () {
 		BENsTurnToPlay();
 	}, 1000)
