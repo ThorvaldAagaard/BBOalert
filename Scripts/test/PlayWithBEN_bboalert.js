@@ -15,6 +15,7 @@ execUserScript('%onNewContext%');
 console.log(Date.now() + " onNewAuction");
 //Script,onNewContext
 console.log(Date.now() + " onNewContext " + currentAuction);
+console.log(Date.now() + " onNewContext " + getDealNumber());
 if ((currentAuction.length >= 8) && (currentAuction.endsWith('------'))) {
     execUserScript('%onAuctionEnd%');
 } else {
@@ -23,7 +24,11 @@ if ((currentAuction.length >= 8) && (currentAuction.endsWith('------'))) {
         bidSymbolMap.clear();
         execUserScript('%onAuctionBegin%');
     }
-    if (isMyTurn()) execUserScript('%onMyTurnToBid%');
+    if (isMyTurn()) {
+        execUserScript('%onMyTurnToBid%');
+    } else {
+       console.log("Opening bidder"+getDirectionToBid());   
+    }
 }
 //Script,onAuctionBegin
 console.log(Date.now() + " onAuctionBegin");
