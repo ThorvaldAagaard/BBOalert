@@ -1,5 +1,4 @@
-//BBOalert, stanmaz new events 
-//BBOalert, version 20240318
+//BBOalert, version 20250220
 //Script,onAnyMutation
 if ((dummyCardsDisplayed != getDummyCards().toString()) && (getDummyCards().join("").length == 26)) {
     dummyCardsDisplayed = getDummyCards().toString();
@@ -212,7 +211,10 @@ window.onAuctionBoxHidden = function () {
 }
 
 window.onNewAuction = function onNewAuction() {
-    if (!auctionBoxDisplayed) return;
+    if (!auctionBoxDisplayed) {
+        console.log("Auction box not displayed in onNewAuction");
+        return;
+    }
     execUserScript('%onNewContext%');
     if (currentAuction != '')
         if (currentAuction != '??') {

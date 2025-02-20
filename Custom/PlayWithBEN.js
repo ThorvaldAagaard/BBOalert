@@ -1,5 +1,5 @@
-BBOalert, 2025-01-22 Play with BEN
-Import, https://github.com/stanmaz/BBOalert/blob/master/Scripts/test/PlayWithBEN_bboalert.js
+BBOalert, 2025-02-20 Play with BEN
+Import, https://github.com/thorvaldaagaard/BBOalert/blob/master/Scripts/test/PlayWithBEN_bboalert.js
 Option, Robot bidding
 //Script,onDummyCardsDisplayed
 console.log(Date.now() + " onDummyCardsDisplayedYY " + dummyCardsDisplayed);
