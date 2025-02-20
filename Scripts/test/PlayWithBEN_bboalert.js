@@ -42,14 +42,15 @@ console.log(Date.now() + " onMyLead");
 //Script,onDealEnd
 console.log(Date.now() + " onDealEnd");
 console.log("removing auction cells");
-if ((nd = getNavDiv()) != null) {
-    if (bs = nd.querySelector('bridge-screen') != null) {
-        if (auctionBox = nd.querySelector('auction-box') != null) {
-            auctionBox.querySelectorAll('.auction-cell').forEach(cell => {
-                cell.remove();  // Or use `cell.parentNode.removeChild(cell);` if needed
-            });
+let nd = getNavDiv();
+if (nd !== null) {
+    let bs = nd.querySelector('bridge-screen');
+    if (bs !== null) {
+        let auctionBox = nd.querySelector('auction-box');
+        if (auctionBox !== null) {
+            auctionBox.querySelectorAll('.auction-cell').forEach(cell => cell.remove());
             console.log("Auction cells removed");
-        }            
+        }
     }
 }
 
