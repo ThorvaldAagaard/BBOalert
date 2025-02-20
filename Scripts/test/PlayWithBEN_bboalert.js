@@ -1,4 +1,5 @@
-//BBOalert, version 20250220
+//BBOalert, stanmaz new events 
+//BBOalert, version 20240318
 //Script,onAnyMutation
 if ((dummyCardsDisplayed != getDummyCards().toString()) && (getDummyCards().join("").length == 26)) {
     dummyCardsDisplayed = getDummyCards().toString();
@@ -15,7 +16,6 @@ execUserScript('%onNewContext%');
 console.log(Date.now() + " onNewAuction");
 //Script,onNewContext
 console.log(Date.now() + " onNewContext " + currentAuction);
-console.log(Date.now() + " onNewContext " + getDealNumber());
 if ((currentAuction.length >= 8) && (currentAuction.endsWith('------'))) {
     execUserScript('%onAuctionEnd%');
 } else {
@@ -24,14 +24,7 @@ if ((currentAuction.length >= 8) && (currentAuction.endsWith('------'))) {
         bidSymbolMap.clear();
         execUserScript('%onAuctionBegin%');
     }
-    setTimeout(function () {
-        if (isMyTurn()) {
-            execUserScript('%onMyTurnToBid%');
-        } else {
-           console.log("Opening bidder: "+getDirectionToBid());   
-        }
-    }, 500);
-
+    if (isMyTurn()) execUserScript('%onMyTurnToBid%');
 }
 //Script,onAuctionBegin
 console.log(Date.now() + " onAuctionBegin");
@@ -43,9 +36,6 @@ if (isMyTurnToPlay()) execUserScript('%onMyTurnToPlay%');
 console.log(Date.now() + " onBiddingBoxDisplayed");
 //Script,onAuctionBoxDisplayed
 console.log(Date.now() + " onAuctionBoxDisplayed");
-if (isMyTurn()) {
-    execUserScript('%onMyTurnToBid%');
-} 
 //Script,onMyLead
 console.log(Date.now() + " onMyLead");
 //Script,onDealEnd
@@ -222,10 +212,7 @@ window.onAuctionBoxHidden = function () {
 }
 
 window.onNewAuction = function onNewAuction() {
-    if (!auctionBoxDisplayed) {
-        console.log("Auction box not displayed in onNewAuction");
-        return;
-    }
+    if (!auctionBoxDisplayed) return;
     execUserScript('%onNewContext%');
     if (currentAuction != '')
         if (currentAuction != '??') {
