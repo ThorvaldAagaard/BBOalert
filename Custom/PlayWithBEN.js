@@ -41,14 +41,14 @@ removeAds(true);
 newdeal = true
 //Script,onDealEnd 
 dealnumber = getDealNumber()
-removedeal(dealnumber)
+removedeal()
 console.log("onDealEnd - Deal removed")
 newdeal = true;
 
 //Script,onAuctionEnd
 if (tableType() == "no") {
 	dealnumber = getDealNumber()
-	removedeal(dealnumber)
+	removedeal()
 	console.log("onAuctionEnd - Deal removed")
 	newdeal = true
 }
@@ -502,7 +502,7 @@ BENsTurnToPlay = function () {
 	}
 }
 
-removedeal = function (dealnumber) {
+removedeal = function () {
 	// Loop through all keys in localStorage
 	// Should perhaps include a table type
 	for (var key in localStorage) {
@@ -515,10 +515,12 @@ removedeal = function (dealnumber) {
 }
 
 savedeal = function (dealnumber, deal) {
-	if (deal["dummy"] == deal["hand"]) {
-		alert ("Hand and dummy are the same - BBO rotated the deal")
-	} else {
-		localStorage.setItem('BidWithBen' + dealnumber, JSON.stringify(deal))
+	if (dealnumber) {
+		if (deal["dummy"] == deal["hand"]) {
+			alert ("Hand and dummy are the same - BBO rotated the deal")
+		} else {
+			localStorage.setItem('BidWithBen' + dealnumber, JSON.stringify(deal))
+		}
 	}
 }
 
