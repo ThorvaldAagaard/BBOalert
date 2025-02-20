@@ -1,11 +1,12 @@
 # BBOalert
 
-Version : 8.5
+Version : 9.0
 
 **Table Of Content**
 
   * [Purpose](#purpose)
   * [Installation](#installation)
+  * [Menus](#menus)
   * [Data import/export](#data-importexport)
   * [Recommended way of using BBOalert](#recommended-way-of-using-bboalert)
   * [Alert button](#alert-button)
@@ -27,6 +28,7 @@ Version : 8.5
     + [Optional code](#optional-code)
     + [Partnership options](#partnership-options)
     + [Trusted code](#trusted-code)
+    + [Auction control tags](#auction-control-tags)
     + [Keyboard Shortcuts](#keyboard-shortcuts)
     + [Button Shortcuts](#button-shortcuts)
     + [Alias](#alias)
@@ -34,6 +36,7 @@ Version : 8.5
     + [Using BBO convention card to share data](#using-bbo-convention-card-to-share-data)
     + [Web storage support](#web-storage-support)
       - [Google Docs](#google-docs)
+      - [Google Drive](#google-drive)
       - [OneDrive](#onedrive)
       - [Github](#github)
       - [Dropbox](#dropbox)
@@ -141,6 +144,8 @@ BBOalert creates four panels :
 
 The panels can be selected by clicking the corresponding buttons at the top of the panel.
 
+### Menus
+
 The "Data" menu contains commands related to the data input/output :
 
 - <b>Paste (New)</b> : to read new data from the clipboard
@@ -152,16 +157,36 @@ The "Data" menu contains commands related to the data input/output :
 
 The "Settings" menu contains commands to enable/disable features :
 
-- <b>Shortcuts</b> : if enabled the "Shortcuts" panel will appear automatically at the start of text entry (chat or alert text)
-- <b>Hover BBOalert Tabs</b> : if enabled the BBOalert panels are selected by moving the mouse over the corresponding button at the top of the BBOalert panel
-- <b>Hover BBO Tabs</b> : if enabled the BBO tabs at the right side are selected by moving the mouse over the tab
-- <b>Collapse Options</b> : if enabled the mutually exclusive blocks of data are grouped together and only the selected block is shown. This feature is particullary usefull to save space on the panel when many blocks are defined
+- <b>Shortcuts</b> : if enabled, the "Shortcuts" panel will appear automatically at the start of text entry (chat or alert text)
+- <b>Hover BBOalert Tabs</b> : if enabled, the BBOalert panels are selected by moving the mouse over the corresponding button at the top of the BBOalert panel
+- <b>Hover BBO Tabs</b> : if enabled, the BBO tabs at the right side are selected by moving the mouse over the tab
+- <b>Collapse Options</b> : if enabled, the mutually exclusive blocks of data are grouped together and only the selected block is shown. This feature is particullary usefull to save space on the panel when many blocks are defined
 - <b>Disable recording</b> : if set, the manual alerts are not recorded
-- <b>Silent startup</b> : if set, BBOalert well remain hidden while starting the BBO session
+- <b>Disable auto-alerts</b> : if set, automatic alerting mechanism is disabled
+- <b>Silent startup</b> : if set, BBOalert will remain hidden while starting the BBO session
 - <b>BBOalert button</b> : if set, a button will be used instead of athe tab to toggle the BBOalert panel
 - <b>Deferred alerts</b> : if set, automatic alert explanation will happen only on demand by opponents
   
 You will find detailed information later in this text but before you continue to read it it is recommended to get familiar with the basic BBOalert functions by following the [tutorial](Tutorial/GettingStarted.pdf).
+
+Through the "Plugin settings..." menu addional self-explanatory utilities can be enabled and configured. 
+- <b>BBO event logging</b> : produces a CSV log file containing all relevant events with timing information. Can be usefull as evidence of slow play.
+- <b>Modified suit colors</b> : allows customization of suit colors. [Standard HTML color names](https://www.w3schools.com/html/html_colors.asp) or rgb(red, green, blue) code may be used. Example for red : <b>rgb(255,0,0)</b>
+  
+![](./images/ModifiedSuitColors.png)
+
+- <b>Automatic prealert</b> : The text defined with the PREALERT shortcut will be sent as chat when opponents change. Instead of PREALERT you may use your own shortcut name.
+- <b>Bidding timeout</b> : will automatically produce chat messages when the opponents exceed the defined time limits.
+- <b>Miscellaneous simple scripts</b> :
+    - <b>Enable chat timestamp</b> : adds a timestamp to each new chat message
+    - <b>Move table left</b> : pushes the table area to the left side of the screen to maximize the space reserved to the BBOalert panel
+    - <b>Large bidding box</b> : maximizes the size of the bidding box
+![](./images/LargeBiddingBox.png)
+    - <b>Modified OK button</b> : The OK text is replaced by the actually selected call for better control before confirming.
+    - <b>Swap bidding buttons</b> : The OK button is moved to the left side of the bidding box, PASS, DBL, RDBLand ALERT buttons to the right side.
+    - <b>Auto chat to opponents</b> : the chat destination will be automatically set to OPPONENTS between the auction begin and the last trick played. Thereafter it will be set back to TABLE.
+    - <b>Disable alerts with casual partner</b> : automatic alerts will be disabled when you play with a partner not defined in any OPTION partnership.
+    - <b>T for 10</b> : T will be used instead of 10 on card symbols.
 
 ## Data import/export
 
@@ -551,6 +576,58 @@ The code between the keywords 'Trusted' and 'Untrusted' will not require to be c
       Untrusted
       ,1N,13-15HCP balanced
 
+### Auction control tags
+
+Tags may be used in the call explanation text to automate some actions making the auction more fluid.
+
+- @T = makes the call “Trusted”. The call will be confirmed automatically bypassing the OK button. This is to be used with calls you are 100% confident in (e.g. openings)
+- @t = makes the call “Untrusted”. It will override the global “Trusted” flag.
+- @D = deferred call explanation. You will explain the call only on explicit request of an opponent. 
+- @d = overrides the global “Deferred alerts” flag from the “Settings” menu for a particular explanation. (see Release notes version 8.5)
+- @A =  sets the “Alert” button
+
+The tags may be anywhere in the text and may be combined. They will be removed before sending the explanation to the opponents. Examples : 
+
+Trusted call. Explanation will be sent immediately without verification.
+
+    ,	1C,	@T explanation
+
+Same effect
+
+    ,	1C,	explanation @T
+
+Deferred call explanation. The call is automatically alerted but will be explained later on explicit request by opponents.
+
+    ,	1C,	@D explanation
+
+Trusted and deferred call explanation.
+
+    ,	1C,	@T@D explanation
+
+Alerted call without explanation (to be explained manually
+on demand). 
+
+    ,	1C,	@D
+
+All bids are trusted except 1D opening and calls beyond the “Untrusted” keyword
+Trusted
+
+    ,	1C,	explanation
+    ,	1D,	@t explanation
+    ,	1H,	explanation
+
+Untrusted
+
+    ,	1S, explanation
+
+Alerted call without explanation (to be explained manually).
+
+    ,	1C,	@A
+
+Alerted call without explanation (to be explained manually on explicit request by opponents)
+
+    ,	1C,	@D
+
 ### Keyboard Shortcuts
 
 Shortcut format :
@@ -760,6 +837,19 @@ The public URL can be obtained in the following way :
 More details can be found in the document :
        
 https://docs.google.com/document/d/1XTma7fZbI0pRU3TtNFOLAG0sUKyBaXFtkQAu90rwfRY/edit?usp=sharing
+
+#### Google Drive
+
+ASCII text files stored with Google Drive are supported. To get the file URL for the “Import” record : 
+
+- Go to Google Drive
+- Select the ASCII file with the right mouse button
+- Select “Share” command
+- Select “Share” from the popup menu
+- Make sure “Anyone with this link” is set to “Viewer”
+- Press “Copy link” to get the URL into the clipboard
+
+The file may not exceed 250kb.
 
 #### OneDrive
 

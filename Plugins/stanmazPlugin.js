@@ -1,7 +1,8 @@
+if (document.title.startsWith("BBOalert 8")) {
 
-//BBOalert,stanmazPlugin version 3.6.3
+//BBOalert,stanmazPlugin version 3.6.5
 
-console.log("Plugin version : 3.6.3");
+console.log("Plugin version : 3.6.5");
 
 function BBOcontext() {
     if (document.title != 'Bridge Base Online') return window.parent.document;
@@ -295,7 +296,7 @@ function BBOcontext() {
 })();
 
 (function () {
-    var title = "Miscellaneous simple scripts v1.0";
+    var title = "Miscellaneous simple scripts";
     var cfg = {};
     cfg.Enable_chat_timestamp = false;
     cfg.Move_table_left = false;
@@ -305,7 +306,7 @@ function BBOcontext() {
     cfg.Swap_bidding_buttons = false;
     cfg.Auto_chat_to_opponents = false;
     cfg.Disable_alerts_with_casual_partner = false;
-    cfg.Remove_Ads = false;
+//    cfg.Remove_Ads = false;
     cfg.T_for_10 = false;
     addBBOalertEvent("onDataLoad", function () {
         console.log("Title = " + title);
@@ -732,4 +733,4 @@ function BBOcontext() {
         }
     };
 })();
-
+}
