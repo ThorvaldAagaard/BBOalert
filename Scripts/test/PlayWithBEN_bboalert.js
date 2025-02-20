@@ -30,7 +30,7 @@ if ((currentAuction.length >= 8) && (currentAuction.endsWith('------'))) {
         } else {
            console.log("Opening bidder: "+getDirectionToBid());   
         }
-        }, 500);
+    }, 500);
 
 }
 //Script,onAuctionBegin
@@ -43,6 +43,9 @@ if (isMyTurnToPlay()) execUserScript('%onMyTurnToPlay%');
 console.log(Date.now() + " onBiddingBoxDisplayed");
 //Script,onAuctionBoxDisplayed
 console.log(Date.now() + " onAuctionBoxDisplayed");
+if (isMyTurn()) {
+    execUserScript('%onMyTurnToBid%');
+} 
 //Script,onMyLead
 console.log(Date.now() + " onMyLead");
 //Script,onDealEnd
