@@ -2,12 +2,11 @@ BBOalert, 2025-02-20 Play with BEN
 Import, https://github.com/thorvaldaagaard/BBOalert/blob/master/Scripts/test/PlayWithBEN_bboalert.js
 Option, Robot bidding
 //Script,onDummyCardsDisplayed
-console.log(Date.now() + " onDummyCardsDisplayedYY " + dummyCardsDisplayed);
+console.log(Date.now() + " onDummyCardsDisplayedBEN " + dummyCardsDisplayed);
 if (deal["played"] && deal["played"].length > 4 && deal["dummy"] != "") {
 	// Ignore the display of dummy
 	// But sometimes it might be late, so grab it if we have no dummy
 } else {
-	dummyCardsDisplayed = dummyCardsDisplayed.split(",").join("")
 	if (dummyCardsDisplayed.length == 26) {
 		deal["dummy"] = formatCardsDisplayed(dummyCardsDisplayed)
 		if (deal["dummy"] == deal["hand"]) {

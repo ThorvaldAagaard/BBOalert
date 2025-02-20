@@ -1,8 +1,9 @@
 //BBOalert, stanmaz new events 
 //BBOalert, version 20240318
 //Script,onAnyMutation
-if ((dummyCardsDisplayed != getDummyCards().toString()) && (getDummyCards().join("").length == 26)) {
-    dummyCardsDisplayed = getDummyCards().toString();
+dummy = getDummyCards().join("")
+if ((dummyCardsDisplayed != dummy) && (dummy.length == 26)) {
+    dummyCardsDisplayed = dummy;
     onDummyCardsDisplayed();
 }
 //Script,onNewDeal
@@ -40,6 +41,17 @@ console.log(Date.now() + " onAuctionBoxDisplayed");
 console.log(Date.now() + " onMyLead");
 //Script,onDealEnd
 console.log(Date.now() + " onDealEnd");
+console.log("removing auction cells");
+if ((nd = getNavDiv()) == null) return;
+var bs = nd.querySelector('bridge-screen');
+if (bs == null) { return; }
+var auctionBox = nd.querySelector('auction-box');
+if (auctionBox == null) {return;}	
+// Remove all .auction-cell elements from auctionBox
+auctionBox.querySelectorAll('.auction-cell').forEach(cell => {
+    cell.remove();  // Or use `cell.parentNode.removeChild(cell);` if needed
+});
+console.log("Auction cells removed");
 //Script,onNewPlayedCard
 console.log(Date.now() + " onNewPlayedCard " + getPlayedCards() + " turn " + whosTurn());
 if (whosTurn() != "") {
