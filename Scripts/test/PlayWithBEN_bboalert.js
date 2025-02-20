@@ -24,11 +24,14 @@ if ((currentAuction.length >= 8) && (currentAuction.endsWith('------'))) {
         bidSymbolMap.clear();
         execUserScript('%onAuctionBegin%');
     }
-    if (isMyTurn()) {
-        execUserScript('%onMyTurnToBid%');
-    } else {
-       console.log("Opening bidder"+getDirectionToBid());   
-    }
+    setTimeout(function () {
+        if (isMyTurn()) {
+            execUserScript('%onMyTurnToBid%');
+        } else {
+           console.log("Opening bidder: "+getDirectionToBid());   
+        }
+        }, 500);
+
 }
 //Script,onAuctionBegin
 console.log(Date.now() + " onAuctionBegin");
