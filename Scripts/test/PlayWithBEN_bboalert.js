@@ -44,7 +44,7 @@ console.log(Date.now() + " onDealEnd");
 console.log("removing auction cells");
 if ((nd = getNavDiv()) != null) {
     if (bs = nd.querySelector('bridge-screen') != null) {
-        if (nd.querySelector('auction-box') != null) {
+        if (auctionBox = nd.querySelector('auction-box') != null) {
             auctionBox.querySelectorAll('.auction-cell').forEach(cell => {
                 cell.remove();  // Or use `cell.parentNode.removeChild(cell);` if needed
             });
