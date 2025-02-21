@@ -13,11 +13,10 @@ console.log(Date.now() + " onNewDeal " + getDealNumber());
 
 //Script,onMyCardsDisplayed
 console.log(Date.now() + " onMyCardsDisplayed " + myCardsDisplayed);
-console.log(Date.now() + " onMyCardsDisplayed lastDealNumber " + lastDealNumber); 
-console.log(Date.now() + " onMyCardsDisplayed getDealNumber " + getDealNumber()); 
-
-currentAuction = '';
-execUserScript('%onNewContext%');
+if (lastDealNumber == getDealNumber()) {
+    currentAuction = '';
+    execUserScript('%onNewContext%');
+}
 
 //Script,onNewAuction
 console.log(Date.now() + " onNewAuction");
@@ -61,16 +60,16 @@ let nd = getNavDiv();
 if (nd !== null) {
     let bs = nd.querySelector('bridge-screen');
     if (bs !== null) {
-        bs.remove();
-//        let auctionBox = nd.querySelector('auction-box');
-//        if (auctionBox !== null) {
-//            auctionBox.querySelectorAll('.auction-cell').forEach(cell => cell.remove());
-//            console.log("Auction cells removed");
-//        }
+        let auctionBox = nd.querySelector('auction-box');
+        if (auctionBox !== null) {
+            auctionBox.querySelectorAll('.auction-cell').forEach(cell => cell.remove());
+            console.log("Auction cells removed");
+        }
     }
 }
 
 // Remove all .auction-cell elements from auctionBox
+
 
 //Script,onNewPlayedCard
 console.log(Date.now() + " onNewPlayedCard " + getPlayedCards() + " turn " + whosTurn());
