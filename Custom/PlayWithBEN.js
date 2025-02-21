@@ -39,7 +39,6 @@ if (deal["played"] && deal["played"].length > 4) {
 removeAds(true);
 newdeal = true
 //Script,onDealEnd 
-dealnumber = getDealNumber()
 removedeal()
 console.log("onDealEnd - Deal removed")
 newdeal = true;
@@ -279,8 +278,8 @@ addSpinner = function () {
 	const overlay = parent.document.createElement('div');
 	overlay.classList.add('overlay');
 	overlay.style.position = 'fixed';
-	overlay.style.top = '50%'; // Adjust top position to center vertically
-	overlay.style.left = '50%'; // Adjust left position to center horizontally
+	overlay.style.top = '40%'; // Adjust top position to center vertically
+	overlay.style.left = '40%'; // Adjust left position to center horizontally
 	overlay.style.transform = 'translate(-50%, -50%)'; // Center the overlay
 	overlay.style.width = '160px'; // Adjust the width of the overlay
 	overlay.style.height = '160px'; // Adjust the height of the overlay
@@ -556,6 +555,7 @@ initdeal = function() {
 	} catch (error) {
 		console.log(error)
 	}
+	newdeal = false
 	return deal;
 	
 }

@@ -41,7 +41,12 @@ console.log(Date.now() + " onAuctionBoxDisplayed");
 console.log(Date.now() + " onMyLead");
 //Script,onDealEnd
 console.log(Date.now() + " onDealEnd");
-console.log("removing auction cells");
+console.log("Removing auction cells");
+  // Wait for 200ms to allow the UI updates to finish
+  setTimeout(() => {
+    console.log('UI has been updated, now running the code');
+    // Proceed with your code that needs the UI to be fully updated
+  }, 200); // Adjust delay as needed
 let nd = getNavDiv();
 if (nd !== null) {
     let bs = nd.querySelector('bridge-screen');
