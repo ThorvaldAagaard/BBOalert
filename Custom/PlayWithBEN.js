@@ -48,6 +48,7 @@ removeAds(true);
 newdeal = true
 
 //Script,onDealEnd 
+dealnumber = getDealNumber()
 removedeal()
 console.log("onDealEnd - Deal removed")
 newdeal = true;
@@ -106,6 +107,7 @@ cardExists = function (card, array) {
 	});
 }
 newdeal = true
+dealnumber = ""
 deal = {}
 getSuit = function (txt) {
 	let t = txt;

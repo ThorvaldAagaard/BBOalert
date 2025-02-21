@@ -1,8 +1,6 @@
 //BBOalert, stanmaz new events 
 //BBOalert, version 20240318
 //Script,onAnyMutation
-console.log(Date.now() + " onMyCardsDisplayed lastDealNumber " + lastDealNumber); 
-console.log(Date.now() + " onMyCardsDisplayed getDealNumber " + getDealNumber()); 
 dummy = getDummyCards().join("")
 if ((dummyCardsDisplayed != dummy) && (dummy.length == 26)) {
     dummyCardsDisplayed = dummy;
@@ -13,7 +11,7 @@ console.log(Date.now() + " onNewDeal " + getDealNumber());
 
 //Script,onMyCardsDisplayed
 console.log(Date.now() + " onMyCardsDisplayed " + myCardsDisplayed);
-if (lastDealNumber == getDealNumber()) {
+if (lastDealNumber =! getDealNumber()) {
     currentAuction = '';
     execUserScript('%onNewContext%');
 }
@@ -30,7 +28,7 @@ if ((currentAuction.length >= 8) && (currentAuction.endsWith('------'))) {
         bidSymbolMap.clear();
         execUserScript('%onAuctionBegin%');
     }
-    console.log(Date.now() + " onNewContext myTurn" + isMyTurn());
+    console.log(Date.now() + " onNewContext myTurn " + isMyTurn());
     console.log(isItMe(getPlayerAtSeat(getDirectionToBid())));
     console.log(getPlayerAtSeat(getDirectionToBid()));
     console.log(getDirectionToBid());
