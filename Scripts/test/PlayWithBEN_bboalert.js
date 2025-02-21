@@ -8,8 +8,12 @@ if ((dummyCardsDisplayed != dummy) && (dummy.length == 26)) {
 }
 //Script,onNewDeal
 console.log(Date.now() + " onNewDeal " + getDealNumber());
+
 //Script,onMyCardsDisplayed
 console.log(Date.now() + " onMyCardsDisplayed " + myCardsDisplayed);
+console.log(Date.now() + " onMyCardsDisplayed lastDealNumber " + lastDealNumber); 
+console.log(Date.now() + " onMyCardsDisplayed getDealNumber " + getDealNumber()); 
+
 currentAuction = '';
 execUserScript('%onNewContext%');
 
@@ -33,37 +37,24 @@ if ((currentAuction.length >= 8) && (currentAuction.endsWith('------'))) {
 }
 //Script,onAuctionBegin
 console.log(Date.now() + " onAuctionBegin");
+
 //Script,onAuctionEnd
 console.log(Date.now() + " onAuctionEnd");
 execUserScript('%onBeforePlayingCard%');
 if (isMyTurnToPlay()) execUserScript('%onMyTurnToPlay%');
+
 //Script,onBiddingBoxDisplayed
 console.log(Date.now() + " onBiddingBoxDisplayed");
+
 //Script,onAuctionBoxDisplayed
 console.log(Date.now() + " onAuctionBoxDisplayed");
+
 //Script,onMyLead
 console.log(Date.now() + " onMyLead");
+
 //Script,onDealEnd
 console.log(Date.now() + " onDealEnd");
-console.log("Removing auction cells");
-  // Wait for 200ms to allow the UI updates to finish
-  setTimeout(() => {
-    console.log('UI has been updated, now running the code');
-    // Proceed with your code that needs the UI to be fully updated
-  }, 200); // Adjust delay as needed
-let nd = getNavDiv();
-if (nd !== null) {
-    let bs = nd.querySelector('bridge-screen');
-    if (bs !== null) {
-        let auctionBox = nd.querySelector('auction-box');
-        if (auctionBox !== null) {
-            auctionBox.querySelectorAll('.auction-cell').forEach(cell => cell.remove());
-            console.log("Auction cells removed");
-        }
-    }
-}
 
-// Remove all .auction-cell elements from auctionBox
 //Script,onNewPlayedCard
 console.log(Date.now() + " onNewPlayedCard " + getPlayedCards() + " turn " + whosTurn());
 if (whosTurn() != "") {

@@ -4,6 +4,9 @@ Option, Robot bidding
 
 //Script,onDummyCardsDisplayed
 console.log(Date.now() + " onDummyCardsDisplayedBEN " + dummyCardsDisplayed);
+console.log(Date.now() + " onDummyCardsDisplayedBEN lastDealNumber " + lastDealNumber); 
+console.log(Date.now() + " onDummyCardsDisplayedBEN getDealNumber " + getDealNumber()); 
+
 if (deal["played"] && deal["played"].length > 4 && deal["dummy"] != "") {
 	// Ignore the display of dummy
 	// But sometimes it might be late, so grab it if we have no dummy
@@ -29,6 +32,8 @@ if (deal["played"] && deal["played"].length > 4 && deal["dummy"] != "") {
 
 //Script,onMyCardsDisplayed
 console.log(Date.now() + " onMyCardsDisplayedYY " + myCardsDisplayed);
+// BBO will redisplay the hand after the deal finish
+// 
 if (deal["played"] && deal["played"].length > 4) {
 	// Ignore the display of your cards
 } else {
