@@ -1,6 +1,7 @@
 BBOalert, 2025-02-20 Play with BEN
 Import, https://github.com/thorvaldaagaard/BBOalert/blob/master/Scripts/test/PlayWithBEN_bboalert.js
 Option, Robot bidding
+
 //Script,onDummyCardsDisplayed
 console.log(Date.now() + " onDummyCardsDisplayedBEN " + dummyCardsDisplayed);
 if (deal["played"] && deal["played"].length > 4 && deal["dummy"] != "") {
@@ -25,6 +26,7 @@ if (deal["played"] && deal["played"].length > 4 && deal["dummy"] != "") {
 		}
 	}
 }
+
 //Script,onMyCardsDisplayed
 console.log(Date.now() + " onMyCardsDisplayedYY " + myCardsDisplayed);
 if (deal["played"] && deal["played"].length > 4) {
@@ -35,9 +37,11 @@ if (deal["played"] && deal["played"].length > 4) {
 		savedeal(dealnumber, deal)
 	}
 }
+
 //Script,onNewDeal 
 removeAds(true);
 newdeal = true
+
 //Script,onDealEnd 
 removedeal()
 console.log("onDealEnd - Deal removed")
@@ -50,6 +54,7 @@ if (tableType() == "no") {
 	console.log("onAuctionEnd - Deal removed")
 	newdeal = true
 }
+
 //Script,onBeforePlayingCard
 console.log(getNow(true) + " onMyBeforePlayingCard " + getPlayedCards() + " turn " + whosTurn());
 
@@ -77,6 +82,7 @@ if (deal["played"] && deal["played"].length > 103) {
 		BENsTurnToPlay();
 	}, 1000)
 }
+
 //Script,onNewPlayedCard 
 // This event calls onMyTurnToPlay, so make no change here
 if (!isMyTurnToPlay()) {

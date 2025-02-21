@@ -11,8 +11,8 @@ console.log(Date.now() + " onNewDeal " + getDealNumber());
 //Script,onMyCardsDisplayed
 console.log(Date.now() + " onMyCardsDisplayed " + myCardsDisplayed);
 currentAuction = '';
-dummyCardsDisplayed = "";
 execUserScript('%onNewContext%');
+
 //Script,onNewAuction
 console.log(Date.now() + " onNewAuction");
 //Script,onNewContext
@@ -25,6 +25,10 @@ if ((currentAuction.length >= 8) && (currentAuction.endsWith('------'))) {
         bidSymbolMap.clear();
         execUserScript('%onAuctionBegin%');
     }
+    console.log(Date.now() + " onNewContext myTurn" + isMyTurn());
+    console.log(isItMe(getPlayerAtSeat(getDirectionToBid())));
+    console.log(getPlayerAtSeat(getDirectionToBid()));
+    console.log(getDirectionToBid());
     if (isMyTurn()) execUserScript('%onMyTurnToBid%');
 }
 //Script,onAuctionBegin
