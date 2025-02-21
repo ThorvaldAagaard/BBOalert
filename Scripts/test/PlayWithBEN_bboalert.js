@@ -11,10 +11,7 @@ console.log(Date.now() + " onNewDeal " + getDealNumber());
 
 //Script,onMyCardsDisplayed
 console.log(Date.now() + " onMyCardsDisplayed " + myCardsDisplayed);
-if (lastDealNumber =! getDealNumber()) {
-    currentAuction = '';
-    execUserScript('%onNewContext%');
-}
+execUserScript('%onNewContext%');
 
 //Script,onNewAuction
 console.log(Date.now() + " onNewAuction");

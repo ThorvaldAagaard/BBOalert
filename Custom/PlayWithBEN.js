@@ -35,10 +35,11 @@ console.log(Date.now() + " onMyCardsDisplayedYY " + myCardsDisplayed);
 // BBO will redisplay the hand after the deal finish
 // 
 if (deal["played"] && deal["played"].length > 4) {
-	// Ignore the display of your cards
+	console.log("onMyCardsDisplayed after deal finished " + myCardsDisplayed + " " + deal)
 } else {
 	if (myCardsDisplayed.length == 26) {
 		deal["hand"] = formatCardsDisplayed(myCardsDisplayed)
+		console.log(Date.now() + " Updated hand with myCardsDisplayed " + myCardsDisplayed + " " + deal["hand"] + getDealNumber())
 		savedeal(dealnumber, deal)
 	}
 }
