@@ -21,7 +21,7 @@ myCardsDisplayed = "";
 console.log(getNow(true) + " onMyCardsDisplayed " + myCardsDisplayed + " Dealnumber: " + getDealNumber() + " " + JSON.stringify(deal));
 
 //Script,onNewAuction
-//console.log(getNow(true) + " onNewAuction");
+console.log(getNow(true) + " onNewAuction");
 
 //Script,onNewState
 console.log(getNow(true) + " onNewState " + currentAuction);
@@ -351,13 +351,13 @@ if (tableType() == "no") {
 console.log(getNow(true) + " onMyBeforePlayingCard " + getPlayedCards() + " turn " + whosTurn());
 
 //Script,onMyTurnToBid
-console.log(getNow(true) + " onMyTurnToBidBEN");
+console.log(getNow(true) + " onMyTurnToBidBEN "+ getContext());
 if (deal["finished"]) {
 	console.log(getNow(true) + " onMyTurnToBid called after deal finished" + " " + JSON.stringify(deal))
 } else {
 	// Give BBO time to get stuff in place
 	var overlay = addSpinner()
-
+	ctx = getContext()
 	if (ctx == "") {
 		setTimeout(function () {
 			BENsTurnToBid(overlay);
