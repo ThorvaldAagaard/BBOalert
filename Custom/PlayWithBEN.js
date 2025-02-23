@@ -671,7 +671,7 @@ BENsTurnToBid = function (overlay) {
 				.then(function (data) {
 					// Proceed with the logic if the response was successful
 					console.log(getNow(true) + " BENsTurnToBid BEN would like to bid:",data.bid)
-					requestAnimationFrame(() => makeBid(bid, 0, ""));
+					requestAnimationFrame(() => makeBid(data.bid, 0, ""));
 					overlay = removeSpinner(overlay);
 				})
 				.catch(function (error) {
