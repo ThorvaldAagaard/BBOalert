@@ -360,11 +360,11 @@ if (deal["finished"]) {
 	ctx = getContext()
 	if (ctx == "") {
 		setTimeout(function () {
-			BENsTurnToBid(overlay);
+			requestIdleCallback(() => BENsTurnToBid(overlay), { timeout: 3000 });
 		}, 3000)
 	} else {
 		setTimeout(function () {
-			BENsTurnToBid(overlay);
+			requestIdleCallback(() => BENsTurnToBid(overlay), { timeout: 3000 });
 		}, 200)
 	}
 }
@@ -378,11 +378,11 @@ if (deal["finished"]) {
 	var overlay = addSpinner()
 	if (deal["played"] && deal["played"].length > 0) {
 		setTimeout(function () {
-			BENsTurnToPlay(overlay);
+			requestIdleCallback(() => BENsTurnToPlay(overlay), { timeout: 3000 });
 		}, 200)
 	} else {
 		setTimeout(function () {
-			BENsTurnToPlay(overlay);
+			requestIdleCallback(() => BENsTurnToPlay(overlay), { timeout: 3000 });
 		}, 2000)
 	}
 }
@@ -671,7 +671,7 @@ BENsTurnToBid = function (overlay) {
 				.then(function (data) {
 					// Proceed with the logic if the response was successful
 					console.log(getNow(true) + " BENsTurnToBid BEN would like to bid:",data.bid)
-					makeBid(data.bid, 0, "");
+					requestAnimationFrame(() => makeBid(bid, 0, ""));
 					overlay = removeSpinner(overlay);
 				})
 				.catch(function (error) {
@@ -792,7 +792,7 @@ BENsTurnToPlay = function (overlay) {
 				.then(function (data) {
 					// Proceed with the logic if the response was successful
 					console.log(getNow(true) + " onMyTurnToPlay BEN would like to play:",data.card)
-					makePlay(data.card[1].replace("T", "10") + data.card[0])
+					requestAnimationFrame(() => makePlay(data.card[1].replace("T", "10") + data.card[0]));
 					overlay = removeSpinner(overlay);
 				})
 				.catch(function (error) {
