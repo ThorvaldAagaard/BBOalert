@@ -365,7 +365,7 @@ if (deal["finished"]) {
 	} else {
 		setTimeout(function () {
 			requestIdleCallback(() => BENsTurnToBid(overlay), { timeout: 3000 });
-		}, 200)
+		}, 500)
 	}
 }
 
@@ -379,7 +379,7 @@ if (deal["finished"]) {
 	if (deal["played"] && deal["played"].length > 0) {
 		setTimeout(function () {
 			requestIdleCallback(() => BENsTurnToPlay(overlay), { timeout: 3000 });
-		}, 200)
+		}, 500)
 	} else {
 		setTimeout(function () {
 			requestIdleCallback(() => BENsTurnToPlay(overlay), { timeout: 3000 });
