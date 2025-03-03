@@ -1,6 +1,6 @@
 # BBOalert
 
-Version : 9.0
+Version : 9.0.0.4
 
 **Table Of Content**
 
@@ -43,42 +43,31 @@ Version : 9.0
       - [Blogger](#blogger)
       - [BBOalert data](#bboalert-data)
       - [Scripts](#scripts)
-    + [Support for the generic BBO convention card](#support-for-the-generic-bbo-convention-card)
 
 For recent changes see actual release notes :
 
 https://docs.google.com/document/d/e/2PACX-1vQ_8Iv9HbBj4nWDXSY_kHsW1ZP_4c4dbOVO0GLuObJc1vFu_TBg9oV6ZJXMWd_tLITOj7i6WaJBeZJI/pub
 
-The purpose of this browser extension is to reduce to the absolute minimum the manual operations due to the alerting procedure while playing bridge on BBO (www.bridgebase.com).
-
-<b>All you need in the beginning, is to install BBOalert and play normally.</b> BBOalert will :
-
-- record alerted calls
-- alert automatically the recorded calls
-
-Thereafter you can decide to use advanced features if needed:
-
-- efficient coding alerts using wild cards, RegEx expressions and user scripts
-- declare conventions in optional blocks of code that can be turned ON and OFF
-- declare which conventions you play with which partner
-- Seat-dependent openings and development
-- Vulnerability-dependent openings and development
-- Keyboard and button shortcuts and abbreviations
-- Full Disclosure BSS file support
-- add custom features using Javascript
-- share your data using Google Drive, Dropbox or Github storage
-
-If you you decide to use BBOalert, join the users community on Facebook 
-
-   https://www.facebook.com/groups/706384146770707/
-
-Facebook should be used to :
-
-- report bugs
-- propose enhancements
-- ask questions
-
 We assume that you are familiar with BBO.
+
+BBOalert is a browser extension that minimizes manual operations due to the alerting procedure while playing bridge on BBO (www.bridgebase.com).
+
+It records alerted calls and automatically alerts the recorded calls.
+
+It offers advanced features such as :
+- efficiently coding alerts using wild cards, RegEx expressions and user scripts
+- declaring conventions in optional blocks of code that can be turned on and off
+- declaring which conventions you play with which partner
+- seat-dependent openings and development
+- vulnerability-dependent openings and development
+- keyboard and button shortcuts and abbreviations
+- Full Disclosure BSS file support
+- adding custom features using Javascript
+- sharing your data using Google Drive, OneDrive, Dropbox or Github storage.
+
+If you decide to use BBOalert, join the users community on Facebook : https://www.facebook.com/groups/706384146770707/
+
+Facebook should be used to report bugs, propose enhancements and ask questions.
 
 ## Purpose
 
@@ -935,58 +924,3 @@ Storing scripts on the web has two advantages :
 
 - Smaller data file. Scripts are not merged with the user data but dynamically added to the BBOalert program.
 - Published scripts can be shared with others       
-       
-### Support for the generic BBO convention card
-
-Note : this feature has been disabled
-
-The drawback of the generic convention card (templates : “BBO Advanced (2/1=GF)” “SAYC - Standard American Yellow Card” or “Simple Modern Acol”) is the lack of text formatting features. The problem is that BBO software removes new line characters and elimines multiple spaces or tabs. The text displayed to the opponents is very hard to read.
-
-This problem can be solved by using underscore characters instead of spaces. BBOalert replaces then underscores by non-breaking spaces before saving data on the server. To be correctly displayed to the opponents each line of text should be approximately 25 to 40 characters long.
-
-The BBO convention card editor is not easy to use. With BBOalert the CC text can be prepared in advance and included in the data in the format :
-
-    CC,<fieldID>,<text>
-
-Then :
-
-- Import your data that includes the CC records from the clipboard (the CC should not be defined in the file dynamically imported from Dropbox)
-- Select Account tab
-- Select Convention Cards
-- Select any of the existing CC templates listed above
-- Press Edit
-- Press “Get from BBOalert”
-- Set the BBO userid of your partner and press Save
-
-You can use this template to prepare your data (hint : set the keyboard to overstrike mode to preserve text line length). The field ID’s are self explanatory.
-
-    CC,summary
-    … text for “System Summary” section
-    CC,ntopen
-    … text for “Notrump Openings” section
-    CC,majoropen
-    … text for “Minor Suit Openings” section
-    CC,minoropen
-    … text for “Minor Suit Openings” section
-    CC,level2open
-    … text for “2-Level Openings” section
-    CC,other
-    … text for “Other important notes” section
-    CC,doubles
-    … text for “Doubles” section
-    CC,ntocalls
-    … text for “Notrump Overcalls” section
-    CC,socalls
-    … text for “Simple Overcalls” section
-    CC,over1nt
-    … text for “Over 1NT Openings” section
-    CC,jocalls
-    … text for “Jump Overcalls” section
-    CC,overtox
-    ...text for “Over Takeout Doubles” section
-    CC,directq
-    ...text for “Over Takeout Doubles” section
-    CC,slam
-    ...text for “Slam Bidding” section
-    CC
-
