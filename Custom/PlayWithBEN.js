@@ -319,9 +319,10 @@ if (deal["finished"]) {
 		console.log(getNow(true) + " onMyCardsDisplayed after deal in progress " + myCardsDisplayed + " " + JSON.stringify(deal))
 	} else {
 		if (myCardsDisplayed.length == 26) {
-			deal["hand"] = formatCardsDisplayed(myCardsDisplayed)
+			deal["hand"] = formatCardsDisplayed(getMyCards())
+			deal["seat"] = myDirection()
 			console.log(getNow(true) + " Updated hand with myCardsDisplayed " + myCardsDisplayed + " " + deal["hand"] + " dealnumber: " + getDealNumber())
-			savedeal(dealnumber, deal)
+			savedeal(getDealNumber(), deal)
 		}
 	}
 }
