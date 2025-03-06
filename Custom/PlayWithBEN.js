@@ -2,7 +2,7 @@ BBOalert, 2025-03-06 Play with BEN
 Option, Robot bidding
 
 //BBOalert, version 20250306
-//Script,onAnnouncementDisplayed,
+//Script,onAnnouncementDisplayed
 console.log(getNow(true) + " onAnnouncementDisplayed Dealnumber: " + getDealNumber() + " " + JSON.stringify(deal));
 $("button:visible:contains('Yes')", getAnnouncementPanel()).click();
 //Script,onNewActivePlayer   
@@ -480,6 +480,12 @@ formatCardsDisplayed = function (cards) {
 	let played = "";
 	let suits = ["", "", "", ""];
 	// Loop over the string in steps of 2 characters
+	if (typeof cards !== "string") {
+		console.error("Invalid input: cards should be a string.");
+		console.error("Received: ", cards);
+		return "";
+	}
+	
 	for (let i = 0; i < cards.length; i += 2) {
 		let card = cards.substring(i, i + 2); // Get a pair of characters from the string
 		let suit = getSuit(card.charAt(1)); // Get the suit from the second character
