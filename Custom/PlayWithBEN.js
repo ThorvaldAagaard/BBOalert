@@ -1,8 +1,10 @@
-BBOalert, 2025-02-21 Play with BEN
+BBOalert, 2025-03-06 Play with BEN
 Option, Robot bidding
 
 //BBOalert, version 20250306
-//Script,onAnnouncementDisplayed,$("button:visible:contains('Yes')", getAnnouncementPanel()).click();
+//Script,onAnnouncementDisplayed,
+console.log(getNow(true) + " onAnnouncementDisplayed Dealnumber: " + getDealNumber() + " " + JSON.stringify(deal));
+$("button:visible:contains('Yes')", getAnnouncementPanel()).click();
 //Script,onNewActivePlayer   
 // Be aware of timing, so keep animations on
 dummy = getDummyCards().join("")
