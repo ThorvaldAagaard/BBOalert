@@ -483,7 +483,7 @@ formatCardsDisplayed = function (cards) {
 	if (typeof cards !== "string") {
 		console.error("Invalid input: cards should be a string.");
 		console.error("Received: ", cards);
-		return "";
+		cards = cards.join("");
 	}
 	
 	for (let i = 0; i < cards.length; i += 2) {
