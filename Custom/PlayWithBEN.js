@@ -542,6 +542,20 @@ makePlay = function(cv) {
 	}
 }
 
+makeClaim = function (tricks, callback) {
+    $(".claimButtonClass:contains('Claim')", PWD).click();
+    $("claim-dialog button:contains('Claim')", PWD).click();
+
+    setTimeout(function () {
+        if ($(".notificationClass div:visible:contains('Claim rejected')", PWD).length > 0) {
+            $(".notificationClass div:visible:contains('Claim rejected')", PWD).parent().hide();
+            callback(false);
+        } else {
+            callback(true);
+        }
+    }, 100);
+};
+
 // Check if this should be changed to SelectBid
 makeBid = function (bid, artificial, explain) {
 	let elBiddingBox = parent.document.querySelector('.biddingBoxClass');
@@ -802,6 +816,16 @@ BENsTurnToPlay = function (overlay) {
 				.then(function (data) {
 					// Proceed with the logic if the response was successful
 					console.log(getNow(true) + " onMyTurnToPlay BEN would like to play:",data.card)
+					if (data.claim) {
+						console.log(getNow(true) + " Claiming " + data.claim + " tricks")
+						makeClaim(tricks, function(result) {
+							console.log("Claim result:", result);
+							if (result) {
+								overlay = removeSpinner(overlay);
+								return
+							}
+						});					
+					}
 					requestAnimationFrame(() => makePlay(data.card[1].replace("T", "10") + data.card[0]));
 					overlay = removeSpinner(overlay);
 				})
