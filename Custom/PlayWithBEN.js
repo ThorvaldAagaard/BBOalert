@@ -481,8 +481,8 @@ formatCardsDisplayed = function (cards) {
 	let suits = ["", "", "", ""];
 	// Loop over the string in steps of 2 characters
 	if (typeof cards !== "string") {
-		console.error("Invalid input: cards should be a string.");
-		console.error("Received: ", cards);
+		//console.error("Invalid input: cards should be a string.");
+		//console.error("Received: ", cards);
 		cards = cards.join("");
 	}
 	
@@ -542,18 +542,21 @@ makePlay = function(cv) {
 	}
 }
 
-makeClaim = function (tricks, callback) {
+makeClaim = function (tricks, card, callback) {
     $(".claimButtonClass:contains('Claim')", PWD).click();
     $("claim-dialog button:contains('Claim')", PWD).click();
 
     setTimeout(function () {
         if ($(".notificationClass div:visible:contains('Claim rejected')", PWD).length > 0) {
             $(".notificationClass div:visible:contains('Claim rejected')", PWD).parent().hide();
+			console.log("Claim rejected")
+			makePlay(card[1].replace("T", "10") + card[0]);
             callback(false);
         } else {
+			console.log("Claiming " + tricks + " tricks")
             callback(true);
         }
-    }, 100);
+    }, 1000);
 };
 
 // Check if this should be changed to SelectBid
@@ -694,9 +697,13 @@ BENsTurnToBid = function (overlay) {
 				})
 				.then(function (data) {
 					// Proceed with the logic if the response was successful
-					console.log(getNow(true) + " BENsTurnToBid BEN would like to bid:",data.bid)
-					requestAnimationFrame(() => makeBid(data.bid, 0, ""));
-					overlay = removeSpinner(overlay);
+					if (data.message) {
+						console.log(getNow(true) + " BEN return message:",data.message)
+					} else {
+						console.log(getNow(true) + " BENsTurnToBid BEN would like to bid:",data.bid)
+						requestAnimationFrame(() => makeBid(data.bid, 0, ""));
+						overlay = removeSpinner(overlay);
+					}
 				})
 				.catch(function (error) {
 					overlay = removeSpinner(overlay);
@@ -815,19 +822,20 @@ BENsTurnToPlay = function (overlay) {
 				})
 				.then(function (data) {
 					// Proceed with the logic if the response was successful
-					console.log(getNow(true) + " onMyTurnToPlay BEN would like to play:",data.card)
-					if (data.claim) {
-						console.log(getNow(true) + " Claiming " + data.claim + " tricks")
-						makeClaim(tricks, function(result) {
-							console.log("Claim result:", result);
-							if (result) {
+					if (data.message) {
+						console.log(getNow(true) + " BEN return message:",data.message)
+					} else {
+						if (data.claim) {
+							console.log(getNow(true) + " Claiming " + data.claim + " tricks")
+							makeClaim(data.claim, data.card, function(result) {
+								console.log("Claim result:", result);
 								overlay = removeSpinner(overlay);
-								return
-							}
-						});					
+							});					
+						} else {
+							requestAnimationFrame(() => makePlay(data.card[1].replace("T", "10") + data.card[0]));
+							overlay = removeSpinner(overlay);
+						}
 					}
-					requestAnimationFrame(() => makePlay(data.card[1].replace("T", "10") + data.card[0]));
-					overlay = removeSpinner(overlay);
 				})
 				.catch(function (error) {
 					overlay = removeSpinner(overlay);
