@@ -321,11 +321,15 @@ if (deal["finished"]) {
 	if (deal["played"] && deal["played"].length > 4) {
 		console.log(getNow(true) + " onMyCardsDisplayed after deal in progress " + myCardsDisplayed + " " + JSON.stringify(deal))
 	} else {
-		if (myCardsDisplayed.length == 26) {
-			deal["hand"] = formatCardsDisplayed(getMyCards())
-			deal["seat"] = myDirection()
-			console.log(getNow(true) + " Updated hand with myCardsDisplayed " + myCardsDisplayed + " " + deal["hand"] + " dealnumber: " + getDealNumber())
-			savedeal(getDealNumber(), deal)
+		if (deal["hand"]) {
+			console.log(getNow(true) + " myCardsDisplayed with hand already " + deal["hand"] + " " + dummyCardsDisplayed + " " + getMyCards())
+		} else {
+			if (myCardsDisplayed.length == 26) {
+				deal["hand"] = formatCardsDisplayed(getMyCards())
+				deal["seat"] = myDirection()
+				console.log(getNow(true) + " Updated hand with myCardsDisplayed " + myCardsDisplayed + " " + getMyCards() + " " + deal["hand"] + " dealnumber: " + getDealNumber())
+				savedeal(getDealNumber(), deal)
+			}
 		}
 	}
 }
@@ -701,7 +705,7 @@ BENsTurnToBid = function (overlay) {
 						console.log(getNow(true) + " BEN return message:",data.message)
 					} else {
 						console.log(getNow(true) + " BENsTurnToBid BEN would like to bid:",data.bid)
-						requestAnimationFrame(() => makeBid(data.bid, 0, ""));
+						setTimeout(() => makeBid(data.bid, 0, ""), 0);
 						overlay = removeSpinner(overlay);
 					}
 				})
@@ -832,7 +836,8 @@ BENsTurnToPlay = function (overlay) {
 								overlay = removeSpinner(overlay);
 							});					
 						} else {
-							requestAnimationFrame(() => makePlay(data.card[1].replace("T", "10") + data.card[0]));
+							console.log(getNow(true) + " BENsTurnToBid BEN would like to play:",data.card)
+							setTimeout(() => makePlay(data.card[1].replace("T", "10") + data.card[0]),0);
 							overlay = removeSpinner(overlay);
 						}
 					}
