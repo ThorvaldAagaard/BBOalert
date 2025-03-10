@@ -1,14 +1,14 @@
-BBOalert, 2025-03-06 Play with BEN
+BBOalert, 2025-03-10 Play with BEN
 Option, Robot bidding
 
-//BBOalert, version 20250306
+//BBOalert, version 20250310
 //Script,onAnnouncementDisplayed
 console.log(getNow(true) + " onAnnouncementDisplayed Dealnumber: " + getDealNumber() + " " + JSON.stringify(deal));
 $("button:visible:contains('Yes')", getAnnouncementPanel()).click();
 //Script,onNewActivePlayer   
 // Be aware of timing, so keep animations on
 dummy = getDummyCards().join("")
-//console.log(getNow(true) +  " onNewActivePlayer  " + dummyCardsDisplayed + " Dummy: " + dummy)
+console.log(getNow(true) +  " onNewActivePlayer  " + dummyCardsDisplayed + " Dummy: " + dummy)
 if ((dummyCardsDisplayed != dummy) && (dummy.length == 26)) {
     dummyCardsDisplayed = dummy;
     onDummyCardsDisplayed();
@@ -783,11 +783,16 @@ BENsTurnToPlay = function (overlay) {
 				console.log(getNow(true) + " No dummy - getting dummy cards")
 				deal["dummy"] = formatCards(getDummyCards())
 				var dummyhand = deal["dummy"]
-				if (dummyhand == "...") {
+				if (dummyhand == "..." ) {
 					overlay = removeSpinner(overlay);
 					alert("No dummy cards, something is wrong. Probably timeing issue"+ " " + getDummyCards())
 					return
 				}
+			}
+			if (!dummyhand) {	
+				overlay = removeSpinner(overlay);
+				alert("No dummy cards, something is wrong. Probably timeing issue"+ " " + getDummyCards())
+				return
 			}
 			var playedCardsXX = formatCardsPlayed(deal["played"])
 			var url = "https://remote.aalborgdata.dk/play?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
