@@ -834,7 +834,8 @@ BENsTurnToPlay = function (overlay) {
 					if (data.message) {
 						console.log(getNow(true) + " BEN return message:",data.message)
 					} else {
-						if (data.claim) {
+						// Only claim as declarer or dummy. As defender we can only conceed
+						if (data.claim && (data.player == 1 || data.player == 3)) {
 							console.log(getNow(true) + " Claiming " + data.claim + " tricks")
 							makeClaim(data.claim, data.card, function(result) {
 								console.log("Claim result:", result);
