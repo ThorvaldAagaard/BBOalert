@@ -779,20 +779,15 @@ BENsTurnToPlay = function (overlay) {
 		
 		} else {
 			var dummyhand = deal["dummy"]
-			if (dummyhand == "") {
+			if (dummyhand == "" || !dummyhand) {
 				console.log(getNow(true) + " No dummy - getting dummy cards")
 				deal["dummy"] = formatCards(getDummyCards())
 				var dummyhand = deal["dummy"]
 				if (dummyhand == "..." ) {
-					overlay = removeSpinner(overlay);
-					alert("No dummy cards, something is wrong. Probably timing issue"+ " " + getDummyCards())
+					console.error("No dummy cards, something is wrong. Probably timing issue"+ " " + getDummyCards())
 					deal["dummy"] = formatCards(getDummyCards())
+					dummyhand = deal["dummy"]
 				}
-			}
-			if (!dummyhand) {	
-				overlay = removeSpinner(overlay);
-				alert("No dummy cards, something is wrong. Probably timing issue"+ " " + getDummyCards())
-				deal["dummy"] = formatCards(getDummyCards())
 			}
 			var playedCardsXX = formatCardsPlayed(deal["played"])
 			var url = "https://remote.aalborgdata.dk/play?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
