@@ -748,8 +748,9 @@ BENsTurnToPlay = function (overlay) {
 		}
 		
 		// If we see 13 cards in dummy, we update the deal
-		if (getDummyCards().length == 13) {
-			deal["dummy"] = formatCards(getDummyCards())
+		dc = getDummyCards()
+		if (dc.join("").length == 26) {
+			deal["dummy"] = formatCards(dc)
 			// We update both hand as BBO might rotate the deal
 			if (deal["dummy"] == deal["hand"]) {
 				console.log(getNow(true) + " same hand for dummy and hand")
@@ -784,8 +785,12 @@ BENsTurnToPlay = function (overlay) {
 				deal["dummy"] = formatCards(getDummyCards())
 				var dummyhand = deal["dummy"]
 				if (dummyhand == "..." ) {
-					console.error("No dummy cards, something is wrong. Probably timing issue"+ " " + getDummyCards())
-					deal["dummy"] = formatCards(getDummyCards())
+					dc = getDummyCards()
+					console.error("No dummy cards, something is wrong. Probably timing issue"+ " " + dc)
+					if (dc.join("").length != 26) {
+						alert("Not seeing 13 cards")
+					}
+					deal["dummy"] = formatCards(dc)
 					dummyhand = deal["dummy"]
 				}
 			}
