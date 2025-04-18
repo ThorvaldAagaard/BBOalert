@@ -548,6 +548,7 @@ makePlay = function(cv) {
 
 makeClaim = function (tricks, card, callback) {
     $(".claimButtonClass:contains('Claim')", PWD).click();
+    $("claim-dialog button:contains('"+parseInt(tricks)+"')", PWD).click();
     $("claim-dialog button:contains('Claim')", PWD).click();
 
     setTimeout(function () {
