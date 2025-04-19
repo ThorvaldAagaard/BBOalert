@@ -1,4 +1,4 @@
-BBOalert, 2025-03-10 Play with BEN
+BBOalert, 2025-04-19 Play with BEN
 Option, Robot bidding
 
 //BBOalert, version 20250310
@@ -547,23 +547,38 @@ makePlay = function(cv) {
 }
 
 makeClaim = function (tricks, card, callback) {
-	var tricksText = parseInt(tricks)
-    $(".claimButtonClass:contains('Claim')", PWD).click();
-	$("claim-dialog button", PWD).filter(function () {
-		return $(this).text().trim() === tricksText;
-	}).click();
-    $("claim-dialog button:contains('Claim')", PWD).click();
+    var tricksText = parseInt(tricks);
 
+    // Step 1: Click the initial Claim button
+    $(".claimButtonClass:contains('Claim')", PWD).click();
+
+    // Wait before step 2
     setTimeout(function () {
-        if ($(".notificationClass div:visible:contains('Claim rejected')", PWD).length > 0) {
-            $(".notificationClass div:visible:contains('Claim rejected')", PWD).parent().hide();
-			console.log("Claim rejected")
-            callback(false);
-        } else {
-			console.log("Claiming " + tricks + " tricks")
-            callback(true);
-        }
-    }, 1000);
+        // Step 2: Click the button that matches the number of tricks
+        $("claim-dialog button", PWD).filter(function () {
+            return $(this).text().trim() === tricksText.toString();
+        }).click();
+
+        // Wait again before step 3
+        setTimeout(function () {
+            // Step 3: Click the final 'Claim' confirmation button
+            $("claim-dialog button:contains('Claim')", PWD).click();
+
+            // Wait before checking for rejection
+            setTimeout(function () {
+                if ($(".notificationClass div:visible:contains('Claim rejected')", PWD).length > 0) {
+                    $(".notificationClass div:visible:contains('Claim rejected')", PWD).parent().hide();
+                    console.log("Claim rejected");
+                    callback(false);
+                } else {
+                    console.log("Claiming " + tricks + " tricks");
+                    callback(true);
+                }
+            }, 1000);
+
+        }, 300); // delay before final 'Claim'
+
+    }, 300); // delay before selecting number of tricks
 };
 
 // Check if this should be changed to SelectBid
