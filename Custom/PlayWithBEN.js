@@ -558,7 +558,6 @@ makeClaim = function (tricks, card, callback) {
         if ($(".notificationClass div:visible:contains('Claim rejected')", PWD).length > 0) {
             $(".notificationClass div:visible:contains('Claim rejected')", PWD).parent().hide();
 			console.log("Claim rejected")
-			makePlay(card[1].replace("T", "10") + card[0]);
             callback(false);
         } else {
 			console.log("Claiming " + tricks + " tricks")
@@ -843,6 +842,9 @@ BENsTurnToPlay = function (overlay) {
 							console.log(getNow(true) + " Claiming " + data.claim + " tricks")
 							makeClaim(data.claim, data.card, function(result) {
 								console.log("Claim result:", result);
+								if (!result) {
+									setTimeout(() => makePlay(data.card[1].replace("T", "10") + data.card[0]),0);
+								}
 								overlay = removeSpinner(overlay);
 							});					
 						} else {
