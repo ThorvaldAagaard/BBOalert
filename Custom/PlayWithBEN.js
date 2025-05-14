@@ -1,4 +1,4 @@
-BBOalert, 2025-04-19 Play with BEN
+BBOalert, 2025-05-14 Play with BEN
 Option, Robot bidding
 
 //BBOalert, version 20250310
