@@ -193,10 +193,23 @@ getDirectionToBid = function () {
     return "NESW".charAt((getDealNumber() - 1 + getContext().length / 2) % 4);
 }
 
+getPlayerAtSeat2 = function (seat) {
+    let player = $(".nameBarDivClass", getNavDiv()).filter(function () {
+        return (this.textContent.startsWith(seat));
+    }).text();
+	console.log(player)
+    // Extract everything before "@font-face"
+    let cutoff = player.indexOf(" @font-face");
+    if (cutoff !== -1) {
+        player = player.substring(0, cutoff);
+    }
+    return player.substring(1);
+}
+
 getPlayerAtSeat = function (seat) {
     return $(".nameBarDivClass", getNavDiv()).filter(function () {
         return (this.textContent.startsWith(seat));
-    }).text().substring(1);
+    }).find(".nameDisplayClass").text();
 }
 
 getDeclarerDirection = function () {
@@ -237,7 +250,7 @@ window.getActivePlayer = function getActivePlayer() {
             }).find(":lt(2)").text();
     }
     // return direction + UID in lower case
-	console.log(name);
+	// console.log(name);
     return name.charAt(0) + name.substring(1).toLowerCase();
 }
 
