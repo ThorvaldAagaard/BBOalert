@@ -225,6 +225,21 @@ window.onAuctionBoxHidden = function () {
     BBOalertEvents().dispatchEvent(E_onAuctionBoxHidden);
     execUserScript('%onAuctionBoxHidden%');
 }
+window.getActivePlayer = function getActivePlayer() {
+    var name = $('bridge-screen deal-viewer .nameBarClass', PWD)
+        .filter(function () {
+            return this.style.backgroundColor === "rgb(255, 206, 0)";
+        }).find(":lt(2)").text();
+    if (name == '') {
+        name = $('bridge-screen deal-viewer .nameBarClass', PWD)
+            .filter(function () {
+                return this.style.backgroundColor === "rgb(204, 204, 154)";
+            }).find(":lt(2)").text();
+    }
+    // return direction + UID in lower case
+	console.log(name);
+    return name.charAt(0) + name.substring(1).toLowerCase();
+}
 
 window.onNewAuction = function onNewAuction() {
     if (!auctionBoxDisplayed) return;
