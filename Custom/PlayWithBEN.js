@@ -320,6 +320,10 @@ if (deal["finished"]) {
 		// But sometimes it might be late, so grab it if we have no dummy
 	} else {
 		if (dummyCardsDisplayed.length == 26) {
+			// When playing defend only the order is a bit different
+			if (newdeal) {
+				initdeal()		
+			}
 			deal["dummy"] = formatCardsDisplayed(dummyCardsDisplayed)
 			if (deal["dummy"] == deal["hand"]) {
 				console.log(getNow(true) + " BBO moved me to the declarer position");
