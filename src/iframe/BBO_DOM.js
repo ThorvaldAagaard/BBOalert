@@ -543,15 +543,18 @@ function myPartner() {
  * retrieve active player direction and user id
  */
 function getActivePlayer() {
-    var name = $('bridge-screen deal-viewer .nameBarClass', PWD)
-        .filter(function () {
-            return this.style.backgroundColor === "rgb(255, 206, 0)";
-        }).find(".nameDisplayClass").text().toLowerCase();
-    if (name != '') return name;
-    return $('bridge-screen deal-viewer .nameBarClass', PWD)
-        .filter(function () {
-            return this.style.backgroundColor === "rgb(204, 204, 154)";
-        }).find(".nameDisplayClass").text().toLowerCase();
+	var name = $('bridge-screen deal-viewer .nameBarClass', PWD)
+		.filter(function () {
+			return this.style.backgroundColor === "rgb(255, 206, 0)";
+		}).find("div:lt(2)").text();
+	if (name == '') {
+		name = $('bridge-screen deal-viewer .nameBarClass', PWD)
+			.filter(function () {
+				return this.style.backgroundColor === "rgb(204, 204, 154)";
+			}).find("div:lt(2)").text();
+	}
+	// return direction + UID in lower case
+	return name.charAt(0) + name.substring(1).toLowerCase();
 }
 
 /**
@@ -592,11 +595,12 @@ function setAlert(on) {
 function tableType() {
 	// no deal number = no table
 	if (getDealNumber() == '') return 'no';
-	// if no score panel -> practice table
-	if ($('#navDiv deal-viewer .score-panel:visible', PWD).text() == '') return "practice";
+	if ($('#navDiv deal-viewer .nameDisplayClass:visible', PWD).text().includes("Robot")) return 'robot';
 	if ($('#navDiv deal-viewer .nameDisplayClass:visible', PWD).filter(function () {
 		return this.textContent.toLowerCase() == whoAmI().toLowerCase();
 	}).text() == '') return 'kibitz';
+	// if no score panel -> practice table
+	if ($('#navDiv deal-viewer .score-panel:visible', PWD).text() == '') return "practice";
 	return 'game';
 }
 
@@ -692,18 +696,21 @@ function sendPrivateChat(uid, text) {
  * retrieve my hand into a string
  */
 function getMyHand() {
-    return $('#navDiv .cardClass .topLeft', PWD).filter(function () {
-        return this.parentElement.parentElement.parentElement.style.zIndex.startsWith("1")
-    }).text().replaceAll("10", "T");
+	return getHandBySeat(mySeat());
 }
 
 /**
  * retrieve partner's hand if visible
  */
 function getPartnerHand() {
-    return $('#navDiv .cardClass .topLeft', PWD).filter(function () {
-        return this.parentElement.parentElement.parentElement.style.zIndex.startsWith("3")
-    }).text().replaceAll("10", "T");
+	return getHandBySeat(partnerSeat());
+}
+
+function getHandBySeat(seat) {
+	var zidx = ("SWNE".indexOf(seat) + 1).toString();
+	return $('#navDiv .cardClass .topLeft:visible', PWD).filter(function () {
+		return this.parentElement.parentElement.parentElement.style.zIndex.startsWith(zidx)
+	}).text().replaceAll("10", "T");
 }
 
 /**
@@ -878,7 +885,16 @@ function setBiddingButtonEvents() {
 	$("#navDiv .biddingBoxClass button", PWD).on('mousedown touchstart', function (event) {
 		// find which button has been pressed
 		$(".mat-ripple-element", this).remove();
-		var buttonIndex = biddingButtonsText.indexOf(event.target.textContent.trim());
+		//		var buttonIndex = biddingButtonsText.indexOf(event.target.textContent.trim());
+		if (DEBUG) console.log(event.target.tagName);
+		var buttonElement = event.target;
+		// If you hit the span element, get its parent
+		if (event.target.tagName != "BUTTON") {
+			buttonElement = event.target.parentElement;
+		}
+		var buttonIndex = getBiddingBoxButtonIndexByText(buttonElement.textContent.trim());
+		if (DEBUG) console.log(buttonIndex);
+		if (buttonIndex < 0) return;
 		// if call level button pressed
 		if ((buttonIndex >= 0) && (buttonIndex <= 6)) {
 			callText = (buttonIndex + 1).toString();
@@ -902,7 +918,7 @@ function setBiddingButtonEvents() {
 						setChatMessage('', false);
 					}
 					return;
-				default:
+				case 16:
 					if (DEBUG) console.log("OK pressed ");
 					addLog('click:[OK]');
 					saveAlert();
@@ -924,4 +940,85 @@ function setBiddingButtonEvents() {
 		}
 	}
 	);
+}
+
+function getBiddingBoxButtonIndexByText(txt) {
+	if (DEBUG) console.log("getBiddingBoxButtonIndexByText " + txt);
+	var buttons = getBiddingBoxButtons();
+	if (buttons == null) return -1;
+	for (var i = 0; i < buttons.length; i++) {
+		if (DEBUG) console.log("getBiddingBoxButtonIndexByText " + txt + " " +
+			buttons[i].textContent.trim() + " " + i);
+		if (buttons[i].textContent.trim() == txt.trim()) return i;
+	}
+	return -1;
+}
+
+function disableSplitScreenSwitch() {
+	if ($($("settings-list ion-toggle", PWD).get(0)).attr("aria-checked"))
+		$($("settings-list ion-toggle", PWD).get(0)).attr("disabled", "true");
+}
+
+function getPlayerAtSeat(seat) {
+	return $(".nameBarDivClass", getNavDiv()).filter(function () {
+		return (this.textContent.startsWith(seat));
+	}).find(".nameDisplayClass").text();
+}
+
+function getOpenProfile() {
+	var pp = parent.document.querySelector('profile-popup');
+	if (pp == null) return null;
+	if (!isVisible(pp)) return null;
+	return pp;
+}
+
+function getOpenProfileBBOid() {
+	var pp = getOpenProfile();
+	if (pp == null) return "";
+	return pp.querySelector('name-tag span').firstChild.textContent.trim()
+}
+
+function getOpenProfileBBOalertURL() {
+	var info = $("profile-popup .otherInfoClass", PWD).text();
+	if (!info.includes("https://")) return "";
+	return info.substring(info.lastIndexOf("https://")).trim();
+}
+
+function loadBBOalertURLinProfile() {
+	var url = getOpenProfileBBOalertURL();
+	if (url == "") return;
+	importedURL = url;
+	readNewData("BBOalert\nImport," + importedURL);
+}
+
+function addBBOalertButtonToProfile() {
+	var pp = getOpenProfile();
+	if (pp == null) return;
+	$('.bboalertProfileButtonClass', pp).remove();
+	var url = getOpenProfileBBOalertURL();
+	if (url == "") return;
+	importedURL = url;
+	loadBBOalertWebDataFile(importedURL, importedURL,
+		function (data) {
+			var txt = data;
+			if (getDataType(txt) == "BBOalert") {
+				var button = document.createElement("button");
+				button.className = "bboalertProfileButtonClass";
+				button.textContent = "Import BBOalert data";
+				button.onclick = function () {
+					setOptions(true);
+					$('#bttab-bboalert').click();
+					readNewData("BBOalert\nImport," + importedURL);
+				};
+				var pp = getOpenProfile();
+				pp.querySelector('.otherInfoClass').after(button);
+			}
+		},
+		function (error) {
+			console.log("Error loading BBOalert data from " + importedURL + " : " + error);
+		});
+}
+
+function removeBBOalertButtonFromProfile() {
+	$('profile-popup .bboalertProfileButtonClass', PWD).remove();
 }

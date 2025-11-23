@@ -1,0 +1,26 @@
+// BBOalert, Trefle Rouge stanmaz 1.3
+
+Import,https://github.com/stanmaz/BBOalert/blob/master/Scripts/setTeachingTable.js
+
+Option,Lang FR
+Option,Lang EN
+Alias,chicane,void
+Alias,Régulier,balanced
+Alias,Au moins,at least
+Alias,cartes à,cards
+Alias,Pas de majeure 4ième,no 4-card major
+Option
+
+Alias,3!C à 4!S,(3|4)[CDHS],@G
+
+Import,{RCbase.tex},https://github.com/stanmaz/BBOalert/blob/master/Systems/TrefleRouge/System/RCbase.tex
+Import,{RCIntro.tex},https://github.com/stanmaz/BBOalert/blob/master/Systems/TrefleRouge/System/RCIntro.tex
+Import,{RCExemple.tex},https://github.com/stanmaz/BBOalert/blob/master/Systems/TrefleRouge/System/RCExemple.tex
+Import,{RC1T.tex},https://github.com/stanmaz/BBOalert/blob/master/Systems/TrefleRouge/System/RC1T.tex
+Import,{RC1K.tex},https://github.com/stanmaz/BBOalert/blob/master/Systems/TrefleRouge/System/RC1K.tex
+Import,{RC1C.tex},https://github.com/stanmaz/BBOalert/blob/master/Systems/TrefleRouge/System/RC1C.tex
+Import,{RC1P.tex},https://github.com/stanmaz/BBOalert/blob/master/Systems/TrefleRouge/System/RC1P.tex
+Import,{RC1SA.tex},https://github.com/stanmaz/BBOalert/blob/master/Systems/TrefleRouge/System/RC1SA.tex
+Import,{RC2m.tex},https://github.com/stanmaz/BBOalert/blob/master/Systems/TrefleRouge/System/RC2m.tex
+Import,{RC2C.tex},https://github.com/stanmaz/BBOalert/blob/master/Systems/TrefleRouge/System/RC2C.tex
+Import,https://github.com/stanmaz/BBOalert/blob/master/Systems/TrefleRouge/System/Maquette.tex

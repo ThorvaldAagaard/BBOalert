@@ -105,6 +105,7 @@ function clearData() {
  * @ignore
  */
 function getDataType(data) {
+	if (data.startsWith("Import,")) return 'BBOalert';
 	header = data.slice(0, 80);
 	if (header.startsWith("https://")) return "URL";
 	if (header.search(/bboalert/i) != -1) return 'BBOalert';
@@ -761,7 +762,7 @@ function getAlert() {
 	var fa = new BBOalertFind();
 	var alertText = fa.findAlert(getContext(), callText);
 	trustedBid = fa.trustedBid;
-	setAlert(fa.alertedBid);
+	if(fa.alertedBid) setAlert(fa.alertedBid);
 	alertHistoryMap.set(getContext() + callText, alertText);
 	if (fa.deferredExplanation) {
 		if (alertText != "") setAlert(true);
