@@ -1,6 +1,6 @@
 # BBOalert
 
-Version : 9.0.0.4
+Version : 9.1.0.1
 
 **Table Of Content**
 
@@ -33,7 +33,6 @@ Version : 9.0.0.4
     + [Button Shortcuts](#button-shortcuts)
     + [Alias](#alias)
     + [Full Disclosure BSS file support](#full-disclosure-bss-file-support)
-    + [Using BBO convention card to share data](#using-bbo-convention-card-to-share-data)
     + [Web storage support](#web-storage-support)
       - [Google Docs](#google-docs)
       - [Google Drive](#google-drive)
@@ -71,11 +70,11 @@ Facebook should be used to report bugs, propose enhancements and ask questions.
 
 ## Purpose
 
-Tired of repeating the same story while alerting your bids on BBO? If yes, this browser extension is your friend.
+Tired of repeating the same explanations when alerting your bids on BBO? If so, this browser extension is your friend.
 
-During the bidding, conventional calls must be alerted and explained to the opponents. Playing artificial bidding systems on BBO is not practical because explaining each alerted call is time consuming and therefore frustrating for all participants.
+During the bidding, conventional calls must be alerted and explained to the opponents. Playing artificial bidding systems on BBO is not practical because explaining every alerted call is time-consuming and therefore frustrating for all participants.
 
-BBOalert solves this problem. Artificial bidding sequences can be predefined in a table. Opponents get the explanation automatically and immediately. Explanations entered manually during the game are recorded for future use.
+BBOalert solves this problem. Artificial bidding sequences can be predefined in a table. Opponents get the explanation automatically and immediately. Explanations entered manually during a game are also recorded for future use.
 
 BBOalert has similar functionality as "Full Disclosure" which is no longer supported by BBO. One difference should be emphasized :
 
@@ -143,6 +142,10 @@ The "Data" menu contains commands related to the data input/output :
 - <b>Copy All</b> : write all data to the clipboard
 - <b>Copy New</b> : write data related to tha manual alerts  to the clipboard
 - <b>Copy Log</b> : write log data to the clipboard. Log data should be provided with a bug report related to unexpected bid explanation retrieved from the data
+- <b>Copy Original</b> : write original data entered with the <b>Paste (New)</b> command.
+- <b>Clear Recent URLs</b> : The list of URLs entered with the <b>Paste (New)</b> command is cleared.
+- <b>Bidding Scenarios</b> : loads the data for practicing typical bidding scenarios. See https://github.com/ADavidBailey/Practice-Bidding-Scenarios/blob/main/README.md for details.
+
 
 The "Settings" menu contains commands to enable/disable features :
 
@@ -573,7 +576,8 @@ Tags may be used in the call explanation text to automate some actions making th
 - @t = makes the call “Untrusted”. It will override the global “Trusted” flag.
 - @D = deferred call explanation. You will explain the call only on explicit request of an opponent. 
 - @d = overrides the global “Deferred alerts” flag from the “Settings” menu for a particular explanation. (see Release notes version 8.5)
-- @A =  sets the “Alert” button
+- @A = sets the “Alert” button
+- @I = ignore the explanation
 
 The tags may be anywhere in the text and may be combined. They will be removed before sending the explanation to the opponents. Examples : 
 
@@ -616,6 +620,10 @@ Alerted call without explanation (to be explained manually).
 Alerted call without explanation (to be explained manually on explicit request by opponents)
 
     ,	1C,	@D
+
+Explanation ignored because the call is explained elsewhere or is not alertable
+
+    ,	1N,	@I 15-17 balanced
 
 ### Keyboard Shortcuts
 
@@ -775,25 +783,6 @@ BBOalert converts BSS data internally to the BBOalert native format. Vulnerabili
 
 The converted data is available in the clipboard. You can paste it into the text editor and use it as a starting point for further modifications. Another possible scenario is to keep importing the original BSS file and to create an overriding code (in BBOalert native format) in a separate file to be appended later ('Append' button).
 
-### Using BBO convention card to share data
-
-Note : this feature has been disabled
-
-To share the data with your partner via the BBO server :
-
-- make a convention card (Account+Convention Card) using "SAYC - Standard American Yellow Card" or "Simple Modern ACOL" as template
-- open it for editing
-- make it shareable by filling your partner's name
-- press "Get from BBOalert" to append your data to the text in the "Defensive Carding" text
-- press "Save Changes"
-
-Note : while editing the "Defensive Carding" text, do not alter anything beyond the large square character which separates your text from the BBOalert data.
-
-This convention card together with the BBOalert data will become available for your partner. To load data into BBOalert
-
-- open the convention card for editing
-- press "Send to BBOalert"
-
 ### Web storage support
 
 BBOalert allows to store data on a file hosting server and to import it dynamically at the beginning of each session. This facilitates the file sharing making sure that both partners use the same data. Actually three sites are supported with their specific limitations due to the particular data security implementation :
@@ -841,6 +830,8 @@ ASCII text files stored with Google Drive are supported. To get the file URL for
 The file may not exceed 250kb.
 
 #### OneDrive
+
+<b>Note : due to the changes made by Microsoft the support for OneDrive files is suspended.</b>
 
 The data can be imported from text files stored in OneDrive cloud. The .txt file extension must be used. The URL link for public viewing should be used with the “Import” record. Note : the file size is not limited.
 
@@ -912,7 +903,17 @@ Note :
 
 - URL aliases must be defined before they are used
 - Import aliases must be defined in the root file of the hierarchical file organisation.
-- Multiple definitions of the same alias (same alias, different URL’s) are allowed : the last one will be used.
+- Multiple definitions of the same alias (same alias, different URL’s) are allowed : the last one will be used.  
+- BBOalert allows the use of URLs shortened  through the tinyurl.com service. While anonymous use of the service is possible, registered users can customize shortened URLs to make them more relevant.  
+  BBOalert converts the short URL to the original long URL by briefly opening the data file in a pop-up window. When a short URL is used for the first time, a notification appears prompting you to click to continue. To prevent this, disable pop
+up blocking:
+    - Chrome: chrome://settings/content/popups
+    - Firefox:   about:preferences#privacy<br>
+  For security reasons, it's best to enable general pop-up blocking, except for certain sites. In our case, you should allow pop-ups for https://www.bridgebase.com.
+- To enable a partner to load your shared data file with one click, you need to edit your BBO profile. Make sure the Other field ends with the URL that is normally used by the Data/Copy (New) command. When your partner opens your profile, BBOalert will then add a button allowing them to import the data file directly. The full URLs are long strings, typically 80 to 120 characters, which, together with your system description, might not fit. The Other text field in the profile is limited to 252 characters. If necessary, shortened URL may be used.
+
+
+
 
 #### Scripts
 
