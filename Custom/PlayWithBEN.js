@@ -1,7 +1,6 @@
-BBOalert, 2025-05-14 Play with BEN
+//BBOalert, 2025-11-01 Play with BEN
 Option, Robot bidding
 
-//BBOalert, version 20250310
 //Script,onAnnouncementDisplayed
 console.log(getNow(true) + " onAnnouncementDisplayed Dealnumber: " + getDealNumber() + " " + JSON.stringify(deal));
 $("button:visible:contains('Yes')", getAnnouncementPanel()).click();
@@ -71,7 +70,6 @@ console.log(getNow(true) + " onMyTurnToBid context: " + getContext());
 console.log(getNow(true) + " onMyTurnToPlay Cards played: " + getPlayedCards());
 //Script
 
-//BBOalert,myFunctions
 //Script,onDataLoad
 currentContext = "??";
 dummyCardsDisplayed = "";
