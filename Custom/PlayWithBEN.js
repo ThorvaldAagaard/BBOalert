@@ -24,6 +24,10 @@ console.log(getNow(true) + " onMyCardsDisplayed " + myCardsDisplayed + " Dealnum
 
 //Script,onNewAuction
 console.log(getNow(true) + " onNewAuction");
+var ctx = getContext();
+if (ctx.endsWith("------") && ctx != "--------" && ctx.length >= 8) {
+    execUserScript('%onBeforeFirstLead%');
+}
 
 //Script,onNewState
 console.log(getNow(true) + " onNewState " + currentAuction);
@@ -384,6 +388,12 @@ if (tableType() == "no") {
 	console.log(getNow(true) + " onAuctionEnd - Deal removed")
 	newdeal = true
 }
+
+//Script,onBeforeFirstLead
+if (getActivePlayer().substring(0,1) == mySeat()) {
+    execUserScript('%onMyTurnToPlay%');
+}
+
 
 //Script,onBeforePlayingCard
 console.log(getNow(true) + " onMyBeforePlayingCard " + getPlayedCards() + " turn " + whosTurn());
@@ -958,7 +968,7 @@ initdeal = function() {
 			if (!deal["played"]) deal["played"] = []
 			if (!deal["ctx"]) deal["ctx"] = ""
 			deal["dealer"] = getDealerDirection()
-			deal["vul"] = ourVulnerability() + areTheyVulnerable()
+			deal["vul"] = getAbsoluteVulnerability()
 			deal["seat"] = mySeat()
 			deal["user"] = getActivePlayer()
 		}
@@ -966,7 +976,7 @@ initdeal = function() {
 			deal = {}
 			deal["number"] = dealnumber
 			deal["dealer"] = getDealerDirection()
-			deal["vul"] = ourVulnerability() + areTheyVulnerable()
+			deal["vul"] = getAbsoluteVulnerability()
 			deal["seat"] = mySeat()
 			deal["user"] = getActivePlayer()
 			deal["hand"] = ""
@@ -984,4 +994,23 @@ initdeal = function() {
 	return deal;
 	
 }
+
+getAbsoluteVulnerability = function() {
+	// Convert from relative (us/them) to absolute (NS/EW) vulnerability format
+	// BEN API expects: None, NS, EW, All
+	const seat = mySeat();
+	const isNS = (seat === 'N' || seat === 'S');
+	const weAreVul = areWeVulnerable() === '@v';
+	const theyAreVul = areTheyVulnerable() === '@V';
+
+	// Convert relative to absolute
+	const nsVul = isNS ? weAreVul : theyAreVul;
+	const ewVul = isNS ? theyAreVul : weAreVul;
+
+	if (nsVul && ewVul) return 'All';
+	if (nsVul) return 'NS';
+	if (ewVul) return 'EW';
+	return 'None';
+}
+
 //Script
