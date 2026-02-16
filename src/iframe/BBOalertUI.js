@@ -177,7 +177,7 @@ function setControlButtons() {
 		fileSelector.style.backgroundColor = "lightblue";
 		fileSelector.add(new Option('Data...'));
 		fileSelector.add(new Option('   Paste (New)'));
-		fileSelector.add(new Option('   Paste (Append)'));
+		fileSelector.add(new Option('   Paste (Prepend)'));
 		fileSelector.add(new Option('   Clear'));
 		fileSelector.add(new Option('   Copy All'));
 		fileSelector.add(new Option('   Copy New'));
@@ -279,7 +279,7 @@ function setBBOalertButton(on) {
 		if (PWD.getElementById("bboalert-button") != null) return;
 		$("#bboalert-button", parent.window.document).remove();
 		var bbb = parent.window.document.createElement("div");
-		$('.nameTagClass', parent.window.document).eq(0).parent().append(bbb);
+		$('.nameTagClass', parent.window.document).eq(0).parent().parent().append(bbb);
 		bbb.outerHTML = BBOalertButtonHTML;
 		$("#bboalert-button", parent.window.document).click(toggleOptions);
 		$("#bboalert-tab", parent.window.document).hide();

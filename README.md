@@ -1,6 +1,6 @@
 # BBOalert
 
-Version : 9.1.0.1
+Version : 9.1.1.x
 
 **Table Of Content**
 
@@ -137,7 +137,7 @@ The panels can be selected by clicking the corresponding buttons at the top of t
 The "Data" menu contains commands related to the data input/output :
 
 - <b>Paste (New)</b> : to read new data from the clipboard
-- <b>Paste (Append)</b> : to append additional data from the clipboard
+- <b>Paste (Prepend)</b> : to prepend additional data from the clipboard
 - <b>Clear</b> : to erase all data
 - <b>Copy All</b> : write all data to the clipboard
 - <b>Copy New</b> : write data related to tha manual alerts  to the clipboard
@@ -788,9 +788,8 @@ The converted data is available in the clipboard. You can paste it into the text
 BBOalert allows to store data on a file hosting server and to import it dynamically at the beginning of each session. This facilitates the file sharing making sure that both partners use the same data. Actually three sites are supported with their specific limitations due to the particular data security implementation :
 
 - GoogleDocs : The data can be formatted as a pretty readable and printable document. Both partners can edit the document online
-- OneDrive : only ASCII text files are supported without the possiblity of online editing
-- Github : only ASCII text files are supported. Both partners can edit the data online. To make the data more readable the Markdown format should be used. Markdown format is standard for documentation purposed in Github environment.
-- Dropbox : only ASCII text files are supported without the possiblity of online editing
+- Github : ASCII text files are supported. Both partners can edit the data online. To make the data more readable the Markdown format should be used. Markdown format is standard for documentation purposed in Github environment. Also MS Word Docx and LibreOffice ODT are supported without the possiblity of online editing. They be edited locally and uploaded
+- Dropbox : ASCII text and MS Word Docx are supported with the possiblity of online editing. LibreOffice ODT files are also supported but should be edited locally and uploaded (Preferred automatic synchronization)
 
 We assume that you are familiar with the tool of your choice.
        
@@ -858,10 +857,6 @@ The public URL can be obtained in the following way :
 - upload it to your Dropbox account
 - make the file shared
 - generate the public URL link for viewing only (default is editing)
-       
-#### Blogger
-       
-Note : This section is under development
 
 #### BBOalert data
 

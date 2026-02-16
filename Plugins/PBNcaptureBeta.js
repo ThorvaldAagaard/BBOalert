@@ -1,5 +1,5 @@
 (function () {
-	console.log("PBN Capture version 1.7.0.5");
+	console.log("PBN Capture version 1.7.0.3");
 	function hand2PBN(t) {
 		// reverse string
 		var n = replaceSuitSymbols(t, "").split("").reverse().join("");
@@ -33,7 +33,7 @@
 		}));
 		// Subtract if short suit contains at least one honnor
 		hand2PBN(getHandBySeat(seat)).split(".").forEach(((s) => {
-			if ((s.length < 3) && ("A" + s).match(/[JQKA]/g).length > 1) tpc = tpc -1;
+			if ((s.length < 3) && ("A" + s).match(/[QKA]/g).length > 1) tpc = tpc -1;
 		}));
 		return tpc;
 	}
@@ -93,7 +93,6 @@
 				if (cfg.Export_PBN) {
 					bboalertLog("");
 					cfg.Export_PBN = false;
-					localStorage.setItem('BBOalertPlugin ' + title, JSON.stringify(cfg));
 					if (DEBUG) console.log("config = " + cfg);
 					if (!localStorage.getItem('PBNcapture')) {
 						bboalertLog("Nothing to export");
@@ -107,7 +106,6 @@
 				}
 				if (cfg.Clear_Log) {
 					cfg.Clear_Log = false;
-					localStorage.setItem('BBOalertPlugin ' + title, JSON.stringify(cfg));
 					if (!localStorage.getItem('PBNcapture')) {
 						bboalertLog("Log is empty");
 						return;
@@ -202,3 +200,4 @@ ${auction}
 		}
 	});
 })();
+

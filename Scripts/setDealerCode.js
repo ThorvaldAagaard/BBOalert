@@ -1,5 +1,6 @@
 //Script,onDataLoad
 window.setDealerCode = function (dealerCode, dealer = "S", rotateDeals = true) {
+    if (window.PBSrandomRotation != undefined) rotateDeals = window.PBSrandomRotation;
     var txtar = null;
     var delayValue = 500;
     var cnt = -1;
@@ -100,6 +101,10 @@ window.setDealerCode = function (dealerCode, dealer = "S", rotateDeals = true) {
                 case 9:
                     // Close dialog
                     $("modal-content button", parent.window.document)[0].dispatchEvent(new Event("click"));
+                    break;
+                case 10:
+                    // Redeal
+                    $(".redeal-button", PWD).click();
                     clearInterval(intrv);
                     break;
                 case 15:
