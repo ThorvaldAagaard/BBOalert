@@ -1,4 +1,4 @@
-//BBOalert, 2025-11-01 Play with BEN
+//BBOalert, 2026-02-16 Play with BEN
 Option, Robot bidding
 
 //Script,onAnnouncementDisplayed
@@ -400,6 +400,11 @@ console.log(getNow(true) + " onMyBeforePlayingCard " + getPlayedCards() + " turn
 
 //Script,onMyTurnToBid
 console.log(getNow(true) + " onMyTurnToBidBEN "+ getContext());
+if (deal["finished"] && getDealNumber() != deal["number"]) {
+	console.log(getNow(true) + " onMyTurnToBid new board detected, reinitializing deal");
+	newdeal = true;
+	deal["finished"] = false;
+}
 if (deal["finished"]) {
 	console.log(getNow(true) + " onMyTurnToBid called after deal finished" + " " + JSON.stringify(deal))
 } else {
@@ -417,8 +422,13 @@ if (deal["finished"]) {
 	}
 }
 
-//Script,onMyTurnToPlay 
+//Script,onMyTurnToPlay
 console.log(getNow(true) + " onMyTurnToPlayBEN");
+if (deal["finished"] && getDealNumber() != deal["number"]) {
+	console.log(getNow(true) + " onMyTurnToPlay new board detected, reinitializing deal");
+	newdeal = true;
+	deal["finished"] = false;
+}
 if (deal["finished"]) {
 	console.log(getNow(true) + " onMyTurnToPlay called after deal finished" + " " + JSON.stringify(deal))
 } else {
