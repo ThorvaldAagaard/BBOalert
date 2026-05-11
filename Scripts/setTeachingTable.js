@@ -1,4 +1,4 @@
-//BBOalert, Set Teaching Table v1.3.2
+//BBOalert, Set Teaching Table v1.3.3
 //Script,setTeachingTable
 var delayValue = 500;
 Promise.resolve()
@@ -9,7 +9,7 @@ Promise.resolve()
     .then(() => $("server-prompt button",window.parent.document).eq(0).click())
     .then(() => delay(delayValue))
     // Press "Practice" button
-    .then(() => $("button.bbo-phx-navigation", BBOcontext()).eq(4).click())
+    .then(() => $("phoenix-regular-navigation-button button", BBOcontext()).eq(4).click())
     .then(() => delay(delayValue))
     // press "Start a Teaching table"
     .then(() => $("button.bbo-phx-navigation.large:visible", BBOcontext()).eq(1).click())
