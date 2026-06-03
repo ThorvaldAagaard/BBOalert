@@ -358,7 +358,10 @@ console.log(getNow(true) + " onMyBeforePlayingCard " + getPlayedCards() + " turn
 console.log(getNow(true) + " onMyTurnToBidBEN "+ getContext());
 if (deal["finished"]) {
 	console.log(getNow(true) + " onMyTurnToBid called after deal finished" + " " + JSON.stringify(deal))
+} else if (biddingInProgress) {
+	console.log(getNow(true) + " onMyTurnToBid skipped, bid request already in progress")
 } else {
+	biddingInProgress = true;
 	// Give BBO time to get stuff in place
 	var overlay = addSpinner()
 	ctx = getContext()
@@ -411,6 +414,7 @@ cardExists = function (card, array) {
 newdeal = true
 dealnumber = ""
 deal = {}
+biddingInProgress = false
 getSuit = function (txt) {
 	let t = txt;
 	switch (t) {
@@ -700,9 +704,11 @@ BENsTurnToBid = function (overlay) {
 					console.log(getNow(true) + " BENsTurnToBid BEN would like to bid:",data.bid)
 					requestAnimationFrame(() => makeBid(data.bid, 0, ""));
 					overlay = removeSpinner(overlay);
+					biddingInProgress = false;
 				})
 				.catch(function (error) {
 					overlay = removeSpinner(overlay);
+					biddingInProgress = false;
 					// Catch any errors that occurred during the fetch or processing
 					console.error('Error occurred:', error.message);
 				});
@@ -711,11 +717,13 @@ BENsTurnToBid = function (overlay) {
 			alert('Error fetching data:', error.message);
 			// Show an error message to the user or perform other error handling actions
 			overlay = removeSpinner(overlay);
+			biddingInProgress = false;
 		}
 		// Before bid update and save deal - BBO seems to forget the bid if we leave after the bid / play
 		savedeal(dealnumber, deal)
 	} catch (error) {
 		overlay = removeSpinner(overlay);
+		biddingInProgress = false;
 	}
 }
 

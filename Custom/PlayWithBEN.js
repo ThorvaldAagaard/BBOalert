@@ -1,16 +1,32 @@
-//BBOalert, 2026-02-16 Play with BEN
+//BBOalert, 2026-06-03 Play with BEN
 Option, Robot bidding
 
 //Script,onAnnouncementDisplayed
 console.log(getNow(true) + " onAnnouncementDisplayed Dealnumber: " + getDealNumber() + " " + JSON.stringify(deal));
+// BEN has no /claim endpoint, so auto-accept all announcements including opponent claims
 $("button:visible:contains('Yes')", getAnnouncementPanel()).click();
-//Script,onNewActivePlayer   
+//Script,onNewActivePlayer
 // Be aware of timing, so keep animations on
 dummy = getDummyCards().join("")
 console.log(getNow(true) +  " onNewActivePlayer  " + dummyCardsDisplayed + " Dummy: " + dummy)
 if ((dummyCardsDisplayed != dummy) && (dummy.length == 26)) {
     dummyCardsDisplayed = dummy;
     onDummyCardsDisplayed();
+} else if (dummy.length > 0 && dummy.length < 26 && dummyCardsDisplayed.length < 26) {
+    // BBO might not have rendered all dummy cards yet, retry with increasing delays
+    console.log(getNow(true) + " Dummy not fully rendered (" + (dummy.length/2) + " cards), retrying...");
+    var retryDelays = [50, 100, 200, 400];
+    retryDelays.forEach(function(delay) {
+        setTimeout(function() {
+            if (dummyCardsDisplayed.length == 26) return; // Already captured
+            var retryDummy = getDummyCards().join("");
+            console.log(getNow(true) + " Retry dummy after " + delay + "ms: " + retryDummy + " (" + (retryDummy.length/2) + " cards)");
+            if ((dummyCardsDisplayed != retryDummy) && (retryDummy.length == 26)) {
+                dummyCardsDisplayed = retryDummy;
+                onDummyCardsDisplayed();
+            }
+        }, delay);
+    });
 }
 
 //Script,onNewDeal
@@ -72,6 +88,24 @@ console.log(getNow(true) + " onNewActivePlayer " + activePlayer);
 console.log(getNow(true) + " onMyTurnToBid context: " + getContext());
 //Script,onMyTurnToPlay
 console.log(getNow(true) + " onMyTurnToPlay Cards played: " + getPlayedCards());
+//Script,onAnnouncement
+console.log(getNow(true) + " onAnnouncement event fired");
+try {
+	var annText = $(".announcementClass:visible", parent.window.document).text().replace(/\s+/g, " ").trim();
+	console.log(getNow(true) + " onAnnouncement text: \"" + annText + "\"");
+} catch (e) { }
+//Script,onNotification
+console.log(getNow(true) + " onNotification event fired");
+try {
+	var notifText = $(".notificationClass:visible", parent.window.document).text().replace(/\s+/g, " ").trim();
+	console.log(getNow(true) + " onNotification text: \"" + notifText + "\"");
+} catch (e) { }
+//Script,onNotificationDisplayed
+console.log(getNow(true) + " onNotificationDisplayed event fired");
+try {
+	var notifText = $(".notificationClass:visible", parent.window.document).text().replace(/\s+/g, " ").trim();
+	console.log(getNow(true) + " onNotificationDisplayed text: \"" + notifText + "\"");
+} catch (e) { }
 //Script
 
 //Script,onDataLoad
@@ -324,7 +358,10 @@ if (deal["finished"]) {
 		if (dummyCardsDisplayed.length == 26) {
 			// When playing defend only the order is a bit different
 			if (newdeal) {
-				initdeal()		
+				// Defensive: onDataLoad block may not have run yet (BBOalert script evaluation race).
+				// initdeal lives in the bottom onDataLoad block - skip if not yet defined.
+				if (typeof initdeal === "function") initdeal();
+				else console.warn(getNow(true) + " onDummyCardsDisplayed: initdeal not yet defined, skipping init");
 			}
 			deal["dummy"] = formatCardsDisplayed(dummyCardsDisplayed)
 			if (deal["dummy"] == deal["hand"]) {
@@ -335,11 +372,8 @@ if (deal["finished"]) {
 			}
 			savedeal(dealnumber, deal)
 		} else {
-			if (deal["dummy"]="") {
-				alert("Try to construct dummys hand by adding played card")
-				dummycard = getPlayedCards()[1]
-				deal["dummy"] = formatCardsDisplayed(dummyCardsDisplayed + dummycard)
-				savedeal(dealnumber, deal)
+			if (deal["dummy"] == "" || !deal["dummy"]) {
+				console.log(getNow(true) + " Dummy incomplete (" + (dummyCardsDisplayed.length/2) + " cards), will retry in BENsTurnToPlay");
 			}
 		}
 	}
@@ -368,13 +402,17 @@ if (deal["finished"]) {
 	}
 }
 
-//Script,onNewDeal 
+//Script,onNewDeal
 removeAds(true);
 newdeal = true
 deal = {}
 deal["number"] = getDealNumber()
+biddingInProgress = false
+playInProgress = false
+lastBidCtx = null
+lastPlayKey = null
 
-//Script,onDealEnd 
+//Script,onDealEnd
 dealnumber = getDealNumber()
 deal["finished"] = true
 removedeal()
@@ -405,12 +443,19 @@ if (deal["finished"] && getDealNumber() != deal["number"]) {
 	newdeal = true;
 	deal["finished"] = false;
 }
+var currentBidCtx = getContext();
 if (deal["finished"]) {
 	console.log(getNow(true) + " onMyTurnToBid called after deal finished" + " " + JSON.stringify(deal))
+} else if (biddingInProgress) {
+	console.log(getNow(true) + " onMyTurnToBid skipped, bid request already in progress")
+} else if (lastBidCtx === currentBidCtx) {
+	console.log(getNow(true) + " onMyTurnToBid skipped, already processed ctx: " + currentBidCtx)
 } else {
+	biddingInProgress = true;
+	lastBidCtx = currentBidCtx;
 	// Give BBO time to get stuff in place
 	var overlay = addSpinner()
-	ctx = getContext()
+	ctx = currentBidCtx
 	if (ctx == "") {
 		setTimeout(function () {
 			requestIdleCallback(() => BENsTurnToBid(overlay), { timeout: 3000 });
@@ -429,9 +474,17 @@ if (deal["finished"] && getDealNumber() != deal["number"]) {
 	newdeal = true;
 	deal["finished"] = false;
 }
+// Dedup key combines played-count and current played cards on screen so repeated fires for the same turn are skipped
+var currentPlayKey = (deal["played"] ? deal["played"].length : 0) + "|" + getPlayedCards();
 if (deal["finished"]) {
 	console.log(getNow(true) + " onMyTurnToPlay called after deal finished" + " " + JSON.stringify(deal))
+} else if (playInProgress) {
+	console.log(getNow(true) + " onMyTurnToPlay skipped, play request already in progress")
+} else if (lastPlayKey === currentPlayKey) {
+	console.log(getNow(true) + " onMyTurnToPlay skipped, already processed key: " + currentPlayKey)
 } else {
+	playInProgress = true;
+	lastPlayKey = currentPlayKey;
 	console.log(getNow(true) + " onMyTurnToPlay current trick: " + deal["played"])
 	var overlay = addSpinner()
 	if (deal["played"] && deal["played"].length > 0) {
@@ -445,7 +498,7 @@ if (deal["finished"]) {
 	}
 }
 
-//Script,onNewPlayedCard 
+//Script,onNewPlayedCard
 // This event calls onMyTurnToPlay, so make no change here
 if (!isMyTurnToPlay()) {
 	deal["played"] = updatePlayedCards(deal["played"])
@@ -465,6 +518,10 @@ cardExists = function (card, array) {
 newdeal = true
 dealnumber = ""
 deal = {}
+biddingInProgress = false
+playInProgress = false
+lastBidCtx = null
+lastPlayKey = null
 getSuit = function (txt) {
 	let t = txt;
 	switch (t) {
@@ -551,18 +608,43 @@ formatCardsDisplayed = function (cards) {
 	return played;
 }
 
+// Inject a stylesheet ONCE that hides ad slots with !important so GPT/Prebid
+// re-injection can't override it. Also nukes ad iframes to kill their scripts
+// (GPT refresh cycles burn CPU even on display:none elements).
 removeAds = function (on) {
-	if (on) {
-		$("#bbo_ad1", BBOcontext()).hide();
-		$("#bbo_ad2", BBOcontext()).hide();
-		$("#bbo_app", BBOcontext()).css("left", "0px");
-		$("#bbo_app", BBOcontext()).css("right", "0px");
-		$("#bbo_app", BBOcontext()).css("width", "");
-		//console.log(getNow(true) + " Adds removed");
+	if (!on) return;
+	try {
+		var doc = parent.window.document;
+		// 1) Persistent CSS - hides ads even if BBO/GPT re-injects them
+		if (!doc.getElementById("ben-no-ads-css")) {
+			var style = doc.createElement("style");
+			style.id = "ben-no-ads-css";
+			style.textContent =
+				"#bbo_ad1, #bbo_ad2, [id^='bbo_ad'], " +
+				"iframe[src*='googleads'], iframe[src*='securepubads'], " +
+				"iframe[src*='doubleclick'], iframe[src*='amazon-adsystem'], " +
+				"iframe[src*='adnxs'], iframe[src*='googlesyndication'], " +
+				".adsbygoogle { display: none !important; visibility: hidden !important; width: 0 !important; height: 0 !important; }" +
+				"#bbo_app { left: 0px !important; right: 0px !important; width: auto !important; }";
+			doc.head.appendChild(style);
+		}
+		// 2) Actively remove ad iframes - stops their JS from running and saves CPU
+		$("iframe[src*='googleads'], iframe[src*='securepubads'], " +
+		  "iframe[src*='doubleclick'], iframe[src*='amazon-adsystem'], " +
+		  "iframe[src*='adnxs'], iframe[src*='googlesyndication']", doc).remove();
+		// 3) Empty the ad slot containers (their inner GPT div+iframe go away)
+		$("#bbo_ad1, #bbo_ad2", doc).empty();
+	} catch (e) {
+		console.error(getNow(true) + " removeAds error:", e);
 	}
 };
 
 removeAds(true);
+// GPT re-runs auctions every ~30s. Re-empty the ad slots periodically to keep iframes from
+// taking back over. Cheap: one jQuery query + .remove() per tick. CSS keeps them invisible.
+if (typeof benAdInterval === "undefined" || !benAdInterval) {
+	benAdInterval = setInterval(function () { removeAds(true); }, 15000);
+}
 
 updatePlayedCards = function (recordedPlays) {
 	let cards = getPlayedCards()
@@ -578,6 +660,124 @@ updatePlayedCards = function (recordedPlays) {
 		}
 	}
 	return recordedPlays;
+}
+
+// Defensive dedupe - despite cardExists checks, duplicates have been observed (probably from brief
+// screen states where a previous trick's winning card is still rendered alongside the new trick).
+// Sending duplicates to the server triggers "No cards remaining" errors.
+dedupePlayedCards = function (cards) {
+	if (!cards || cards.length == 0) return cards;
+	var seen = {};
+	var result = [];
+	for (var i = 0; i < cards.length; i++) {
+		var c = cards[i];
+		if (seen[c]) {
+			console.warn(getNow(true) + " dedupe: dropping duplicate " + c + " at index " + i);
+			continue;
+		}
+		seen[c] = true;
+		result.push(c);
+	}
+	return result;
+}
+
+getTrumpSuit = function(ctx) {
+	// Find the last real bid (not pass/double/redouble) to determine trump suit
+	for (var i = ctx.length - 2; i >= 0; i -= 2) {
+		var bid = ctx.substring(i, i + 2);
+		if (bid != "--" && bid != "Db" && bid != "Rd") {
+			var suit = bid.charAt(1);
+			if (suit == "N") return ""; // No Trump
+			return suit; // S, H, D, or C
+		}
+	}
+	return "";
+}
+
+reconstructDummy = function(currentDummyCards, playedCards, declarerDir, ctx) {
+	// Reconstruct original dummy hand by adding back cards played from dummy's position
+	if (!playedCards || playedCards.length == 0) return formatCards(currentDummyCards);
+
+	var trumpSuit = getTrumpSuit(ctx);
+	var dummyDir = "NESWNESW".charAt("NESW".indexOf(declarerDir) + 2);
+	// Opening leader is to the left of declarer (clockwise)
+	var leaderDir = "NESWNESW".charAt("NESW".indexOf(declarerDir) + 1);
+
+	var ranks = "23456789TJQKA";
+	var dummyPlayedCards = [];
+	var currentLeader = leaderDir;
+
+	// Process complete tricks
+	var fullTricks = Math.floor(playedCards.length / 4);
+	for (var t = 0; t < fullTricks; t++) {
+		var trickStart = t * 4;
+		// Determine play order for this trick: leader, then clockwise
+		var playOrder = [];
+		var dir = currentLeader;
+		for (var j = 0; j < 4; j++) {
+			playOrder.push(dir);
+			dir = "NESWNESW".charAt("NESW".indexOf(dir) + 1);
+		}
+
+		// Find dummy's card in this trick
+		for (var j = 0; j < 4; j++) {
+			if (playOrder[j] == dummyDir) {
+				dummyPlayedCards.push(playedCards[trickStart + j]);
+				break;
+			}
+		}
+
+		// Determine trick winner to know who leads next
+		var leadSuit = playedCards[trickStart].charAt(0);
+		var winnerIdx = 0;
+		var winnerRank = ranks.indexOf(playedCards[trickStart].charAt(1));
+		var winnerIsTrump = (leadSuit == trumpSuit);
+
+		for (var j = 1; j < 4; j++) {
+			var cardSuit = playedCards[trickStart + j].charAt(0);
+			var cardRank = ranks.indexOf(playedCards[trickStart + j].charAt(1));
+
+			if (trumpSuit != "" && cardSuit == trumpSuit && !winnerIsTrump) {
+				winnerIdx = j;
+				winnerRank = cardRank;
+				winnerIsTrump = true;
+			} else if (trumpSuit != "" && cardSuit == trumpSuit && winnerIsTrump && cardRank > winnerRank) {
+				winnerIdx = j;
+				winnerRank = cardRank;
+			} else if (cardSuit == leadSuit && !winnerIsTrump && cardRank > winnerRank) {
+				winnerIdx = j;
+				winnerRank = cardRank;
+			}
+		}
+		currentLeader = playOrder[winnerIdx];
+	}
+
+	// Handle incomplete trick (cards played but trick not finished)
+	var remainingCards = playedCards.length % 4;
+	if (remainingCards > 0) {
+		var trickStart = fullTricks * 4;
+		var dir = currentLeader;
+		for (var j = 0; j < remainingCards; j++) {
+			if (dir == dummyDir) {
+				dummyPlayedCards.push(playedCards[trickStart + j]);
+			}
+			dir = "NESWNESW".charAt("NESW".indexOf(dir) + 1);
+		}
+	}
+
+	// Combine current visible dummy cards with dummy's played cards
+	// currentDummyCards: array of "rank+suit" like ["KD", "4S"]
+	// dummyPlayedCards: array of "suit+rank" like ["DK", "S4"]
+	var allDummyCards = currentDummyCards.slice();
+	for (var i = 0; i < dummyPlayedCards.length; i++) {
+		var played = dummyPlayedCards[i];
+		var asCard = played.charAt(1) + played.charAt(0); // "DK" -> "KD"
+		allDummyCards.push(asCard);
+	}
+
+	console.log(getNow(true) + " reconstructDummy: visible=" + currentDummyCards.length +
+		" dummyPlayed=" + JSON.stringify(dummyPlayedCards) + " total=" + allDummyCards.length);
+	return formatCards(allDummyCards);
 }
 
 triggerMouseEvent = function (node, eventType) {
@@ -718,9 +918,16 @@ removeSpinner = function (overlay) {
 
 BENsTurnToBid = function (overlay) {
 	if (newdeal) {
-		initdeal()		
+		if (typeof initdeal === "function") initdeal();
 	}
 	try {
+		// State may have advanced while this call was deferred - bail if it's no longer our turn
+		if (!isMyTurnToBid()) {
+			console.log(getNow(true) + " BENsTurnToBid aborted - no longer my turn to bid");
+			overlay = removeSpinner(overlay);
+			biddingInProgress = false;
+			return;
+		}
 		// alert(getMyCards())
 		// Due to timing we don't have the hand, so we try to get it again
 		if (!deal["hand"]  || deal["hand"].length < 13) {
@@ -739,7 +946,7 @@ BENsTurnToBid = function (overlay) {
 		var vul = deal["vul"]
 		var hand = deal["hand"]
 		var dealnumber = getDealNumber()
-		var url = "https://remote.aalborgdata.dk/bid?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand
+		var url = "https://remote.aalborgdata.dk/bid?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand + "&board=" + encodeURIComponent(getBoardID())
 		console.log(getNow(true) + " BENsTurnToBid Requesting " + url)
 		try {
 			fetch(url, {
@@ -771,14 +978,25 @@ BENsTurnToBid = function (overlay) {
 					// Proceed with the logic if the response was successful
 					if (data.message) {
 						console.log(getNow(true) + " BEN return message:",data.message)
+						overlay = removeSpinner(overlay);
+						biddingInProgress = false;
 					} else {
 						console.log(getNow(true) + " BENsTurnToBid BEN would like to bid:",data.bid)
-						setTimeout(() => makeBid(data.bid, 0, ""), 0);
+						// Re-check turn AT CLICK TIME (inside setTimeout) - state may advance between now and when the macrotask runs
+						setTimeout(() => {
+							if (isMyTurnToBid()) {
+								makeBid(data.bid, 0, "");
+							} else {
+								console.log(getNow(true) + " Skipping bid click - no longer my turn to bid")
+							}
+						}, 0);
 						overlay = removeSpinner(overlay);
+						biddingInProgress = false;
 					}
 				})
 				.catch(function (error) {
 					overlay = removeSpinner(overlay);
+					biddingInProgress = false;
 					// Catch any errors that occurred during the fetch or processing
 					console.error('Error occurred:', error.message);
 				});
@@ -787,20 +1005,29 @@ BENsTurnToBid = function (overlay) {
 			alert('Error fetching data:', error.message);
 			// Show an error message to the user or perform other error handling actions
 			overlay = removeSpinner(overlay);
+			biddingInProgress = false;
 		}
 		// Before bid update and save deal - BBO seems to forget the bid if we leave after the bid / play
 		savedeal(dealnumber, deal)
 	} catch (error) {
 		overlay = removeSpinner(overlay);
+		biddingInProgress = false;
 	}
 }
 
 BENsTurnToPlay = function (overlay) {
 	console.log(getNow(true) + " BENsTurnToPlay called");
 	if (newdeal) {
-		initdeal()
+		if (typeof initdeal === "function") initdeal();
 	}
 	try {
+		// State may have advanced while this call was deferred - bail if it's no longer our turn
+		if (!isMyTurnToPlay()) {
+			console.log(getNow(true) + " BENsTurnToPlay aborted - no longer my turn to play");
+			overlay = removeSpinner(overlay);
+			playInProgress = false;
+			return;
+		}
 		// if (myCardsDisplayed.length == 26) {
 		// 	console.log(getNow(true) + " Updated hand with myCardsDisplayed " + myCardsDisplayed + " " + deal["hand"])
 		// 	deal["hand"] = formatCardsDisplayed(myCardsDisplayed)
@@ -829,7 +1056,17 @@ BENsTurnToPlay = function (overlay) {
 		}
 		
 		deal["played"] = updatePlayedCards(deal["played"])
-		
+		deal["played"] = dedupePlayedCards(deal["played"])
+
+		// Bail out if I have no cards left to play - the deal is effectively over
+		// (this happens when an opponent claim transitions BBO state mid-call)
+		if (getMyCards().length == 0 && deal["played"].length > 0) {
+			console.log(getNow(true) + " BENsTurnToPlay aborted - no cards in my hand, deal must be ending");
+			overlay = removeSpinner(overlay);
+			playInProgress = false;
+			return;
+		}
+
 		hand = deal["hand"]
 		var ctx = getContext()
 		deal["ctx"] = ctx
@@ -841,30 +1078,38 @@ BENsTurnToPlay = function (overlay) {
 		if (deal["played"].length == 52) {
 			console.log(getNow(true) + " BENsTurnToPlay called, but Board is finished");
 			overlay = removeSpinner(overlay);
+			playInProgress = false;
 			return
 		}
 		if (deal["played"].length == 0) {
-			var url = "https://remote.aalborgdata.dk/lead?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand;
+			var url = "https://remote.aalborgdata.dk/lead?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand + "&board=" + encodeURIComponent(getBoardID());
 		
 		} else {
 			var dummyhand = deal["dummy"]
-			if (dummyhand == "" || !dummyhand) {
-				console.log(getNow(true) + " No dummy - getting dummy cards")
-				deal["dummy"] = formatCards(getDummyCards())
-				var dummyhand = deal["dummy"]
-				if (dummyhand == "..." ) {
-					dc = getDummyCards()
-					console.error("No dummy cards, something is wrong. Probably timing issue"+ " " + dc)
-					if (dc.join("").length != 26) {
-						alert("Not seeing 13 cards")
-					}
+			if (dummyhand == "" || !dummyhand || dummyhand == "...") {
+				console.log(getNow(true) + " No dummy stored - getting dummy cards from screen")
+				dc = getDummyCards()
+				if (dc.join("").length == 26) {
 					deal["dummy"] = formatCards(dc)
-					dummyhand = deal["dummy"]
+				} else {
+					// Dummy cards incomplete on screen - reconstruct by adding back played cards
+					console.log(getNow(true) + " Dummy incomplete on screen (" + dc.length + " cards), reconstructing from played cards")
+					deal["dummy"] = reconstructDummy(dc, deal["played"], getDeclarerDirection(), ctx)
 				}
+				dummyhand = deal["dummy"]
+				savedeal(dealnumber, deal)
+			}
+			// Verify dummy has 13 cards before sending to API
+			var dummyCardCount = dummyhand.replace(/\./g, "").length;
+			if (dummyCardCount != 13) {
+				console.error(getNow(true) + " Dummy has " + dummyCardCount + " cards instead of 13: " + dummyhand);
+				overlay = removeSpinner(overlay);
+				playInProgress = false;
+				return;
 			}
 			var playedCardsXX = formatCardsPlayed(deal["played"])
 			var url = "https://remote.aalborgdata.dk/play?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
-				"&dummy=" + dummyhand + "&played=" + playedCardsXX;
+				"&dummy=" + dummyhand + "&played=" + playedCardsXX + "&board=" + encodeURIComponent(getBoardID());
 		}
 		var tournamentType = getTournamentType()
 		if (tournamentType != "") {
@@ -880,6 +1125,7 @@ BENsTurnToPlay = function (overlay) {
 					// Check if the response is successful
 					if (!response.ok) {
 						overlay = removeSpinner(overlay);
+						playInProgress = false;
 						// Log the response status and status text
 						console.error(getNow(true) + ' Response not OK:', response.status, response.statusText);
 		
@@ -901,26 +1147,37 @@ BENsTurnToPlay = function (overlay) {
 					// Proceed with the logic if the response was successful
 					if (data.message) {
 						console.log(getNow(true) + " BEN return message:",data.message)
+						overlay = removeSpinner(overlay);
+						playInProgress = false;
 					} else {
+						// Re-check turn before clicking - state may have advanced during the fetch
+						var stillMyTurn = isMyTurnToPlay();
 						// Only claim as declarer or dummy. As defender we can only conceed
 						if (data.claim && (data.player == 1 || data.player == 3)) {
 							console.log(getNow(true) + " Claiming " + data.claim + " tricks")
 							makeClaim(data.claim, data.card, function(result) {
 								console.log("Claim result:", result);
-								if (!result) {
+								if (!result && stillMyTurn) {
 									setTimeout(() => makePlay(data.card[1].replace("T", "10") + data.card[0]),0);
 								}
 								overlay = removeSpinner(overlay);
-							});					
+								playInProgress = false;
+							});
 						} else {
 							console.log(getNow(true) + " BENsTurnToBid BEN would like to play:",data.card)
-							setTimeout(() => makePlay(data.card[1].replace("T", "10") + data.card[0]),0);
+							if (stillMyTurn) {
+								setTimeout(() => makePlay(data.card[1].replace("T", "10") + data.card[0]),0);
+							} else {
+								console.log(getNow(true) + " Skipping play click - no longer my turn to play")
+							}
 							overlay = removeSpinner(overlay);
+							playInProgress = false;
 						}
 					}
 				})
 				.catch(function (error) {
 					overlay = removeSpinner(overlay);
+					playInProgress = false;
 					// Catch any errors that occurred during the fetch or processing
 					console.error(getNow(true) + ' Error occurred:', error.message);
 				});
@@ -930,12 +1187,14 @@ BENsTurnToPlay = function (overlay) {
 			console.error(getNow(true) + ' Error fetching data:', errorMessage);
 			// Show an error message to the user or perform other error handling actions
 			overlay = removeSpinner(overlay);
+			playInProgress = false;
 		}
-		
+
 		// Before play update and save deal - BBO seems to forget the bid if we leave after the bid / play
 		savedeal(dealnumber, deal)
 	} catch (error) {
 		overlay = removeSpinner(overlay);
+		playInProgress = false;
 	}
 }
 
@@ -966,6 +1225,45 @@ getTournamentType = function() {
 	if (text.indexOf("imp") > -1) return "IMP";
 	if (text.indexOf("mp") > -1) return "MP";
 	return "";
+}
+
+getMatchName = function() {
+	// Grab the match title shown in the nav-bar, e.g. "Challenge match against a robot"
+	// then compact: strip stop words, abbreviate to "<initials>-<lastword>" when 3+ words remain.
+	// e.g. "Challenge match against a robot" -> "CM-robot"
+	try {
+		var title = $("nav-bar h2.titleClass", parent.window.document).first().text().trim();
+		if (!title) return "";
+		var stopWords = ["a", "an", "the", "of", "for", "against", "vs", "and", "with", "in", "on", "at", "to"];
+		var words = title.split(/\s+/).filter(function (w) {
+			return w && stopWords.indexOf(w.toLowerCase()) === -1;
+		});
+		if (words.length === 0) return "";
+		var compact;
+		if (words.length <= 2) {
+			compact = words.join("-");
+		} else {
+			var initials = words.slice(0, -1).map(function (w) { return w.charAt(0).toUpperCase(); }).join("");
+			compact = initials + "-" + words[words.length - 1];
+		}
+		return compact.replace(/[^A-Za-z0-9\-]/g, "");
+	} catch (e) { }
+	return "";
+}
+
+getBoardID = function() {
+	// Build a unique-ish board ID from date, tournament type, board number, and match name
+	var now = new Date();
+	var dateStr = now.getFullYear() +
+		String(now.getMonth() + 1).padStart(2, '0') +
+		String(now.getDate()).padStart(2, '0');
+	var tournament = getTournamentType() || "X";
+	var boardNum = String(getDealNumber()).padStart(3, '0');
+	var matchName = getMatchName();
+
+	var id = dateStr + "_" + tournament + "_" + boardNum;
+	if (matchName) id += "_" + matchName;
+	return id;
 }
 
 initdeal = function() {
