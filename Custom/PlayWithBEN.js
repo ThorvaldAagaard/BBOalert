@@ -1,4 +1,4 @@
-//BBOalert, 2026-06-03 Play with BEN
+//BBOalert, 2026-06-13 Play with BEN
 Option, Robot bidding
 
 //Script,onAnnouncementDisplayed
@@ -515,6 +515,14 @@ cardExists = function (card, array) {
 		return existingCard === card
 	});
 }
+// Server selection: in the BBO browser console run
+//   localStorage.BEN_SERVER = 'local'     -> http://localhost:8085 (when the gateway is down)
+//   localStorage.removeItem('BEN_SERVER') -> back to remote (default)
+getBENBaseUrl = function () {
+	return localStorage.getItem('BEN_SERVER') === 'local'
+		? 'http://localhost:8085'
+		: 'https://remote.aalborgdata.dk';
+}
 newdeal = true
 dealnumber = ""
 deal = {}
@@ -946,7 +954,7 @@ BENsTurnToBid = function (overlay) {
 		var vul = deal["vul"]
 		var hand = deal["hand"]
 		var dealnumber = getDealNumber()
-		var url = "https://remote.aalborgdata.dk/bid?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand + "&board=" + encodeURIComponent(getBoardID())
+		var url = getBENBaseUrl() + "/bid?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand + "&board=" + encodeURIComponent(getBoardID())
 		console.log(getNow(true) + " BENsTurnToBid Requesting " + url)
 		try {
 			fetch(url, {
@@ -1082,7 +1090,7 @@ BENsTurnToPlay = function (overlay) {
 			return
 		}
 		if (deal["played"].length == 0) {
-			var url = "https://remote.aalborgdata.dk/lead?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand + "&board=" + encodeURIComponent(getBoardID());
+			var url = getBENBaseUrl() + "/lead?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand + "&board=" + encodeURIComponent(getBoardID());
 		
 		} else {
 			var dummyhand = deal["dummy"]
@@ -1108,7 +1116,7 @@ BENsTurnToPlay = function (overlay) {
 				return;
 			}
 			var playedCardsXX = formatCardsPlayed(deal["played"])
-			var url = "https://remote.aalborgdata.dk/play?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
+			var url = getBENBaseUrl() + "/play?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
 				"&dummy=" + dummyhand + "&played=" + playedCardsXX + "&board=" + encodeURIComponent(getBoardID());
 		}
 		var tournamentType = getTournamentType()

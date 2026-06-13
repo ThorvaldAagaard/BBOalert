@@ -1,4 +1,4 @@
-//BBOalert, 2026-05-08 Play with Brill
+//BBOalert, 2026-06-13 Play with Brill
 Option, Robot Brill
 
 //Script,onAnnouncementDisplayed
@@ -556,6 +556,14 @@ cardExists = function (card, array) {
 		// Assuming cards are objects with unique identifiers like 'id'
 		return existingCard === card
 	});
+}
+// Server selection: in the BBO browser console run
+//   localStorage.BRILL_SERVER = 'local'     -> http://localhost:5200 (https variant: http://localhost:7200)
+//   localStorage.removeItem('BRILL_SERVER') -> back to remote (default)
+getBrillBaseUrl = function () {
+	return localStorage.getItem('BRILL_SERVER') === 'local'
+		? 'http://localhost:5200'
+		: 'https://brillservice.aalborgdata.dk';
 }
 newdeal = true
 dealnumber = ""
@@ -1128,7 +1136,7 @@ BrillsTurnToBid = function (overlay) {
 		var vul = deal["vul"]
 		var hand = deal["hand"]
 		var dealnumber = getDealNumber()
-		var url = "https://brillservice.aalborgdata.dk/bid?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand + "&board=" + encodeURIComponent(getBoardID())
+		var url = getBrillBaseUrl() + "/bid?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand + "&board=" + encodeURIComponent(getBoardID())
 		console.log(getNow(true) + " BrillsTurnToBid Requesting " + url)
 		try {
 			fetch(url, {
@@ -1265,7 +1273,7 @@ BrillsTurnToPlay = function (overlay) {
 			return
 		}
 		if (deal["played"].length == 0) {
-			var url = "https://brillservice.aalborgdata.dk/lead?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand + "&board=" + encodeURIComponent(getBoardID());
+			var url = getBrillBaseUrl() + "/lead?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand + "&board=" + encodeURIComponent(getBoardID());
 		
 		} else {
 			var dummyhand = deal["dummy"]
@@ -1291,7 +1299,7 @@ BrillsTurnToPlay = function (overlay) {
 				return;
 			}
 			var playedCardsXX = formatCardsPlayed(deal["played"])
-			var url = "https://brillservice.aalborgdata.dk/play?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
+			var url = getBrillBaseUrl() + "/play?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
 				"&dummy=" + dummyhand + "&played=" + playedCardsXX + "&board=" + encodeURIComponent(getBoardID());
 		}
 		var tournamentType = getTournamentType()
@@ -1446,7 +1454,7 @@ validateClaimWithServerInternal = function (panel, tricksClaimed, claimerDir, re
 		// server can verify the claim against everyone's actual cards.
 		var allHands = getAllHands();
 		console.log(getNow(true) + " validateClaim allHands: N=" + allHands.N + " E=" + allHands.E + " S=" + allHands.S + " W=" + allHands.W);
-		var url = "https://brillservice.aalborgdata.dk/claim?user=" + user +
+		var url = getBrillBaseUrl() + "/claim?user=" + user +
 			"&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat +
 			"&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
 			"&dummy=" + dummyhand + "&played=" + playedCardsXX +
@@ -1552,7 +1560,7 @@ sendFinalPlayInternal = function () {
 		console.log(getNow(true) + " sendFinalPlay allHands: N=" + allHands.N + " E=" + allHands.E + " S=" + allHands.S + " W=" + allHands.W);
 		// Always use /pbn/finalize - the server's universal "save PBN" endpoint.
 		// Deal type is signalled by &passedout / &claim / &final query params.
-		var url = "https://brillservice.aalborgdata.dk/pbn/finalize?user=" + user +
+		var url = getBrillBaseUrl() + "/pbn/finalize?user=" + user +
 			"&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat +
 			"&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
 			"&dummy=" + dummyhand + "&played=" + playedCardsXX +
