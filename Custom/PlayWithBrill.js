@@ -1,4 +1,6 @@
 //BBOalert, 2026-06-13 Play with Brill
+//BBOalert, localStorage.BRILL_SERVER = 'local'      // → http://localhost:8085
+//BBOalert, localStorage.removeItem('BRILL_SERVER')  // → back to remote (https://remote.aalborgdata.dk, default)
 Option, Robot Brill
 
 //Script,onAnnouncementDisplayed

@@ -1,4 +1,7 @@
 //BBOalert, 2026-06-13 Play with BEN
+//BBOalert, localStorage.BEN_SERVER = 'local'      // → http://localhost:8085
+//BBOalert, localStorage.removeItem('BEN_SERVER')  // → back to remote (https://remote.aalborgdata.dk, default)
+
 Option, Robot bidding
 
 //Script,onAnnouncementDisplayed
