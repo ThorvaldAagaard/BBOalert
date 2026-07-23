@@ -1,6 +1,6 @@
-//BBOalert, 2026-06-13 Play with Brill
+//BBOalert, 2026-06-23 Play with Brill
 //BBOalert, localStorage.BRILL_SERVER = 'local'      // → http://localhost:8085
-//BBOalert, localStorage.removeItem('BRILL_SERVER')  // → back to remote (https://remote.aalborgdata.dk, default)
+//BBOalert, localStorage.removeItem('BRILL_SERVER')  // → back to brillservice (https://brillservice.aalborgdata.dk, default)
 Option, Robot Brill
 
 //Script,onAnnouncementDisplayed
@@ -561,11 +561,22 @@ cardExists = function (card, array) {
 }
 // Server selection: in the BBO browser console run
 //   localStorage.BRILL_SERVER = 'local'     -> http://localhost:5200 (https variant: http://localhost:7200)
-//   localStorage.removeItem('BRILL_SERVER') -> back to remote (default)
+//   localStorage.removeItem('BRILL_SERVER') -> back to brillservice (default)
 getBrillBaseUrl = function () {
 	return localStorage.getItem('BRILL_SERVER') === 'local'
 		? 'http://localhost:5200'
 		: 'https://brillservice.aalborgdata.dk';
+}
+// Player naming for the saved PBN. The server stamps names only on the end-of-board calls
+// (/pbn/finalize and /claim): south = the human's name -> [South]; robot = the bots' name ->
+// [North]/[East]/[West]. [Room] is derived server-side from the board label (Open, or Closed
+// when it ends in _robot) - nothing to send. Omitting these keeps empty seat tags (old behavior).
+// user= is a caller/tool identity tag the server ignores, so it is not sent on these two calls.
+getSouthName = function () {
+	return whoAmI() || "";
+}
+getRobotName = function () {
+	return "Brill";
 }
 newdeal = true
 dealnumber = ""
@@ -1275,8 +1286,13 @@ BrillsTurnToPlay = function (overlay) {
 			return
 		}
 		if (deal["played"].length == 0) {
-			var url = getBrillBaseUrl() + "/lead?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand + "&board=" + encodeURIComponent(getBoardID());
-		
+			// board = the PLAIN board number ([Board] tag / log context); pbn_label carries the
+			// groupable "<session>_b<N>" name and event the challenge name (see getBoardLabel).
+			var url = getBrillBaseUrl() + "/lead?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
+				"&board=" + encodeURIComponent(dealnumber) +
+				"&pbn_label=" + encodeURIComponent(getBoardLabel()) +
+				"&event=" + encodeURIComponent(getEventName());
+
 		} else {
 			var dummyhand = deal["dummy"]
 			if (dummyhand == "" || !dummyhand || dummyhand == "...") {
@@ -1302,7 +1318,12 @@ BrillsTurnToPlay = function (overlay) {
 			}
 			var playedCardsXX = formatCardsPlayed(deal["played"])
 			var url = getBrillBaseUrl() + "/play?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
-				"&dummy=" + dummyhand + "&played=" + playedCardsXX + "&board=" + encodeURIComponent(getBoardID());
+				"&dummy=" + dummyhand + "&played=" + playedCardsXX +
+				"&board=" + encodeURIComponent(dealnumber) +
+				"&pbn_label=" + encodeURIComponent(getBoardLabel()) +
+				"&event=" + encodeURIComponent(getEventName()) +
+				"&south=" + encodeURIComponent(getSouthName()) +
+				"&robot=" + encodeURIComponent(getRobotName());
 		}
 		var tournamentType = getTournamentType()
 		if (tournamentType != "") {
@@ -1456,11 +1477,14 @@ validateClaimWithServerInternal = function (panel, tricksClaimed, claimerDir, re
 		// server can verify the claim against everyone's actual cards.
 		var allHands = getAllHands();
 		console.log(getNow(true) + " validateClaim allHands: N=" + allHands.N + " E=" + allHands.E + " S=" + allHands.S + " W=" + allHands.W);
-		var url = getBrillBaseUrl() + "/claim?user=" + user +
+		var url = getBrillBaseUrl() + "/claim?south=" + encodeURIComponent(getSouthName()) +
+			"&robot=" + encodeURIComponent(getRobotName()) +
 			"&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat +
 			"&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
 			"&dummy=" + dummyhand + "&played=" + playedCardsXX +
-			"&board=" + encodeURIComponent(getBoardID()) +
+			"&board=" + encodeURIComponent(dealnumber) +
+			"&pbn_label=" + encodeURIComponent(getBoardLabel()) +
+			"&event=" + encodeURIComponent(getEventName()) +
 			"&tricks=" + tricksClaimed +
 			"&n=" + allHands.N + "&e=" + allHands.E + "&s=" + allHands.S + "&w=" + allHands.W;
 		if (claimerDir) url += "&claimer=" + claimerDir;
@@ -1562,11 +1586,17 @@ sendFinalPlayInternal = function () {
 		console.log(getNow(true) + " sendFinalPlay allHands: N=" + allHands.N + " E=" + allHands.E + " S=" + allHands.S + " W=" + allHands.W);
 		// Always use /pbn/finalize - the server's universal "save PBN" endpoint.
 		// Deal type is signalled by &passedout / &claim / &final query params.
-		var url = getBrillBaseUrl() + "/pbn/finalize?user=" + user +
+		var url = getBrillBaseUrl() + "/pbn/finalize?south=" + encodeURIComponent(getSouthName()) +
+			"&robot=" + encodeURIComponent(getRobotName()) +
 			"&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat +
 			"&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
 			"&dummy=" + dummyhand + "&played=" + playedCardsXX +
-			"&board=" + encodeURIComponent(getBoardID()) +
+			// board = the PLAIN board number so the [Board] tag stays numeric (match pairing);
+			// pbn_label names the file "<session>_b<N>.pbn" so the /pbn page groups every board
+			// of this sitting under one heading, and event supplies that heading.
+			"&board=" + encodeURIComponent(dealnumber) +
+			"&pbn_label=" + encodeURIComponent(getBoardLabel()) +
+			"&event=" + encodeURIComponent(getEventName()) +
 			"&final=true" +
 			"&n=" + allHands.N + "&e=" + allHands.E + "&s=" + allHands.S + "&w=" + allHands.W;
 		if (passedOut) {
@@ -1635,49 +1665,78 @@ savedeal = function (dealnumber, deal) {
 }
 
 getTournamentType = function() {
-	let text = $("#navDiv score-panel", parent.window.document).text().toLowerCase();
+	let text = $("#navDiv score-panel, #navDiv .score-panel", parent.window.document).text().toLowerCase();
 	if (text.indexOf("imp") > -1) return "IMP";
 	if (text.indexOf("mp") > -1) return "MP";
 	return "";
 }
 
 getMatchName = function() {
-	// Grab the match title shown in the nav-bar, e.g. "Challenge match against a robot"
-	// then compact: strip stop words, abbreviate to "<initials>-<lastword>" when 3+ words remain.
-	// e.g. "Challenge match against a robot" -> "CM-robot"
-	try {
-		var title = $("nav-bar h2.titleClass", parent.window.document).first().text().trim();
-		if (!title) return "";
-		var stopWords = ["a", "an", "the", "of", "for", "against", "vs", "and", "with", "in", "on", "at", "to"];
-		var words = title.split(/\s+/).filter(function (w) {
-			return w && stopWords.indexOf(w.toLowerCase()) === -1;
-		});
-		if (words.length === 0) return "";
-		var compact;
-		if (words.length <= 2) {
-			compact = words.join("-");
-		} else {
-			var initials = words.slice(0, -1).map(function (w) { return w.charAt(0).toUpperCase(); }).join("");
-			compact = initials + "-" + words[words.length - 1];
-		}
-		return compact.replace(/[^A-Za-z0-9\-]/g, "");
-	} catch (e) { }
-	return "";
+	var title = $("nav-bar h2.titleClass", parent.window.document).first().text().trim();
+	if (!title) return "";
+	var stopWords = ["a", "an", "the", "of", "for", "against", "vs", "and", "with", "in", "on", "at", "to", "board"];
+	var words = title.split(/\s+/).filter(function (w) {
+		return w && stopWords.indexOf(w.toLowerCase()) === -1 && !/^\d+$/.test(w);
+	});
+	if (words.length === 0) return "";
+	var compact;
+	if (words.length <= 2) {
+		compact = words.join("-");
+	} else {
+		var initials = words.slice(0, -1).map(function (w) { return w.charAt(0).toUpperCase(); }).join("");
+		compact = initials + "-" + words[words.length - 1];
+	}
+	return compact.replace(/[^A-Za-z0-9\-]/g, "");
+}
+
+getDateStamp = function() {
+	var now = new Date();
+	return now.getFullYear() +
+		String(now.getMonth() + 1).padStart(2, '0') +
+		String(now.getDate()).padStart(2, '0');
 }
 
 getBoardID = function() {
-	// Build a unique-ish board ID from date, tournament type, board number, and match name
-	var now = new Date();
-	var dateStr = now.getFullYear() +
-		String(now.getMonth() + 1).padStart(2, '0') +
-		String(now.getDate()).padStart(2, '0');
+	// Build a unique-ish board ID from date, tournament type, board number, and match name.
+	// Only used as the play-log context on /bid; saved PBNs use getBoardLabel() instead.
 	var tournament = getTournamentType() || "X";
 	var boardNum = String(getDealNumber()).padStart(3, '0');
 	var matchName = getMatchName();
 
-	var id = dateStr + "_" + tournament + "_" + boardNum;
+	var id = getDateStamp() + "_" + tournament + "_" + boardNum;
 	if (matchName) id += "_" + matchName;
 	return id;
+}
+
+// The session slug every board of this sitting shares - date, scoring type and match name,
+// with NO board number in it. Brill.Service's /pbn page groups saved boards by their filename
+// after stripping a trailing "_b<N>" (PbnChallengeKey), so boards only land in one group when
+// they share this prefix. getBoardID() buries the board number in the MIDDLE, which is why
+// every board showed up as its own "Brill.Service /play" challenge.
+getChallengeSlug = function() {
+	var slug = getDateStamp() + "_" + (getTournamentType() || "X");
+	var matchName = getMatchName();
+	if (matchName) slug += "_" + matchName;
+	return slug;
+}
+
+// Filename label for one saved board: "<session slug>_b<board>" - the same shape BridgeChallenge
+// sends as pbn_label, so Brill.Service names and groups our boards exactly the same way.
+getBoardLabel = function() {
+	return getChallengeSlug() + "_b" + String(getDealNumber());
+}
+
+// Readable [Event] tag for the saved PBN, i.e. the group heading on the Completed Boards page.
+// Without it the server falls back to the default "Brill.Service /play". Any "board <n>" in the
+// nav-bar title is stripped so every board of the session reports the same event.
+getEventName = function() {
+	var title = $("nav-bar h2.titleClass", parent.window.document).first().text().trim();
+	if (title) {
+		var cleaned = title.replace(/\bboard\s*\d+\b/ig, "").replace(/\s{2,}/g, " ").trim();
+		if (cleaned) return cleaned;
+	}
+	var tournament = getTournamentType();
+	return "BBO" + (tournament ? " " + tournament : "") + " " + getDateStamp();
 }
 
 initdeal = function() {
