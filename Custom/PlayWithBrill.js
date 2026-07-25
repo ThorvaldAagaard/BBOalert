@@ -1,4 +1,4 @@
-//BBOalert, 2026-06-23 Play with Brill
+//BBOalert, 2026-06-26 Play with Brill
 //BBOalert, localStorage.BRILL_SERVER = 'local'      // → http://localhost:8085
 //BBOalert, localStorage.removeItem('BRILL_SERVER')  // → back to brillservice (https://brillservice.aalborgdata.dk, default)
 Option, Robot Brill
@@ -567,16 +567,29 @@ getBrillBaseUrl = function () {
 		? 'http://localhost:5200'
 		: 'https://brillservice.aalborgdata.dk';
 }
-// Player naming for the saved PBN. The server stamps names only on the end-of-board calls
-// (/pbn/finalize and /claim): south = the human's name -> [South]; robot = the bots' name ->
-// [North]/[East]/[West]. [Room] is derived server-side from the board label (Open, or Closed
-// when it ends in _robot) - nothing to send. Omitting these keeps empty seat tags (old behavior).
-// user= is a caller/tool identity tag the server ignores, so it is not sent on these two calls.
-getSouthName = function () {
-	return whoAmI() || "";
-}
+// Player naming for the saved PBN. The server stamps names on the board-saving calls (/play,
+// /claim, /pbn/finalize) into [North]/[East]/[South]/[West] and derives [Room] from the board
+// label (Open, or Closed when it ends in _robot).
+//
+// On a live BBO table Brill drives ONLY our own seat (every action is gated on isItMe()==whoAmI),
+// so the OTHER three seats are BBO's own robots (GIB / Ben / an opponent), each with its own name.
+// Recording all three as "Brill" (the old getRobotName) was wrong on two counts: they aren't Brill,
+// and the seat Brill actually played was ours. So we now send the ACTUAL name at each seat and label
+// only the Brill-driven seat "Brill". getSeatDisplayName(dir) returns "Brill" for our own seat and
+// BBO's on-screen name for the rest; sent per-seat as &south/&north/&east/&west.
+// user= is a caller/tool identity tag the server ignores, so it is not sent on these calls.
 getRobotName = function () {
 	return "Brill";
+}
+getSeatDisplayName = function (dir) {
+	var name = (getPlayerAtSeat(dir) || "").trim();
+	// Our own seat is the one Brill operates -- match on the on-screen name (same test isItMe uses)
+	// with deal["seat"] as a fallback for when the name isn't rendered at save time. Label it "Brill".
+	var me = (typeof whoAmI === "function" ? (whoAmI() || "") : "").trim();
+	var isHeroSeat = (name && me && name.toLowerCase() === me.toLowerCase())
+		|| (typeof deal !== "undefined" && deal && deal["seat"] === dir);
+	if (isHeroSeat) return getRobotName();
+	return name; // BBO's own name for this seat (GIB / Ben / opponent)
 }
 newdeal = true
 dealnumber = ""
@@ -1149,7 +1162,18 @@ BrillsTurnToBid = function (overlay) {
 		var vul = deal["vul"]
 		var hand = deal["hand"]
 		var dealnumber = getDealNumber()
-		var url = getBrillBaseUrl() + "/bid?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand + "&board=" + encodeURIComponent(getBoardID())
+		// Same board/session tagging as /lead and /play: board = the PLAIN board number,
+		// pbn_label = the groupable "<session>_b<N>" (names the bid log), event = the match
+		// name. The server stamps board + event onto the game it bids, so a missing auction
+		// context recorded here says which board of which tournament produced it.
+		var url = getBrillBaseUrl() + "/bid?user=" + user + "&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat + "&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
+			"&board=" + encodeURIComponent(dealnumber) +
+			"&pbn_label=" + encodeURIComponent(getBoardLabel()) +
+			"&event=" + encodeURIComponent(getEventName())
+		var bidTournamentType = getTournamentType()
+		if (bidTournamentType != "") {
+			url += "&tournament=" + bidTournamentType
+		}
 		console.log(getNow(true) + " BrillsTurnToBid Requesting " + url)
 		try {
 			fetch(url, {
@@ -1322,8 +1346,10 @@ BrillsTurnToPlay = function (overlay) {
 				"&board=" + encodeURIComponent(dealnumber) +
 				"&pbn_label=" + encodeURIComponent(getBoardLabel()) +
 				"&event=" + encodeURIComponent(getEventName()) +
-				"&south=" + encodeURIComponent(getSouthName()) +
-				"&robot=" + encodeURIComponent(getRobotName());
+				"&south=" + encodeURIComponent(getSeatDisplayName("S")) +
+				"&north=" + encodeURIComponent(getSeatDisplayName("N")) +
+				"&east=" + encodeURIComponent(getSeatDisplayName("E")) +
+				"&west=" + encodeURIComponent(getSeatDisplayName("W"));
 		}
 		var tournamentType = getTournamentType()
 		if (tournamentType != "") {
@@ -1477,8 +1503,10 @@ validateClaimWithServerInternal = function (panel, tricksClaimed, claimerDir, re
 		// server can verify the claim against everyone's actual cards.
 		var allHands = getAllHands();
 		console.log(getNow(true) + " validateClaim allHands: N=" + allHands.N + " E=" + allHands.E + " S=" + allHands.S + " W=" + allHands.W);
-		var url = getBrillBaseUrl() + "/claim?south=" + encodeURIComponent(getSouthName()) +
-			"&robot=" + encodeURIComponent(getRobotName()) +
+		var url = getBrillBaseUrl() + "/claim?south=" + encodeURIComponent(getSeatDisplayName("S")) +
+			"&north=" + encodeURIComponent(getSeatDisplayName("N")) +
+			"&east=" + encodeURIComponent(getSeatDisplayName("E")) +
+			"&west=" + encodeURIComponent(getSeatDisplayName("W")) +
 			"&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat +
 			"&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
 			"&dummy=" + dummyhand + "&played=" + playedCardsXX +
@@ -1586,8 +1614,10 @@ sendFinalPlayInternal = function () {
 		console.log(getNow(true) + " sendFinalPlay allHands: N=" + allHands.N + " E=" + allHands.E + " S=" + allHands.S + " W=" + allHands.W);
 		// Always use /pbn/finalize - the server's universal "save PBN" endpoint.
 		// Deal type is signalled by &passedout / &claim / &final query params.
-		var url = getBrillBaseUrl() + "/pbn/finalize?south=" + encodeURIComponent(getSouthName()) +
-			"&robot=" + encodeURIComponent(getRobotName()) +
+		var url = getBrillBaseUrl() + "/pbn/finalize?south=" + encodeURIComponent(getSeatDisplayName("S")) +
+			"&north=" + encodeURIComponent(getSeatDisplayName("N")) +
+			"&east=" + encodeURIComponent(getSeatDisplayName("E")) +
+			"&west=" + encodeURIComponent(getSeatDisplayName("W")) +
 			"&dealer=" + dealer + "&dealno=" + dealnumber + "&seat=" + seat +
 			"&vul=" + vul + "&ctx=" + ctx + "&hand=" + hand +
 			"&dummy=" + dummyhand + "&played=" + playedCardsXX +
@@ -1696,23 +1726,12 @@ getDateStamp = function() {
 		String(now.getDate()).padStart(2, '0');
 }
 
-getBoardID = function() {
-	// Build a unique-ish board ID from date, tournament type, board number, and match name.
-	// Only used as the play-log context on /bid; saved PBNs use getBoardLabel() instead.
-	var tournament = getTournamentType() || "X";
-	var boardNum = String(getDealNumber()).padStart(3, '0');
-	var matchName = getMatchName();
-
-	var id = getDateStamp() + "_" + tournament + "_" + boardNum;
-	if (matchName) id += "_" + matchName;
-	return id;
-}
-
 // The session slug every board of this sitting shares - date, scoring type and match name,
 // with NO board number in it. Brill.Service's /pbn page groups saved boards by their filename
 // after stripping a trailing "_b<N>" (PbnChallengeKey), so boards only land in one group when
-// they share this prefix. getBoardID() buries the board number in the MIDDLE, which is why
-// every board showed up as its own "Brill.Service /play" challenge.
+// they share this prefix. (The old getBoardID() buried the board number in the MIDDLE, which
+// is why every board showed up as its own "Brill.Service /play" challenge - all endpoints now
+// send the plain board number plus this slug via pbn_label.)
 getChallengeSlug = function() {
 	var slug = getDateStamp() + "_" + (getTournamentType() || "X");
 	var matchName = getMatchName();
