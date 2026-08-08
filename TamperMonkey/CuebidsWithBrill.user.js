@@ -260,12 +260,17 @@
 		return allTokens(bidding).filter(function (t) { return t !== '.'; });
 	}
 
-	// Cuebids tokens -> Brill ctx ("P"->"--", "X"->"Db", "XX"->"Rd", bids unchanged)
+	// Cuebids tokens -> Brill ctx.
+	//
+	// The stored auction uses "D"/"R" for double/redouble - NOT "X"/"XX". X/XX are only the
+	// display form (the app's _2() converts X->D, XX->R on the way in). Observed live:
+	//     ".-.-2H[\"Weak, 6+!H\"]-D-3H[\"To play\"]"
+	// X/XX are still accepted here in case a different surface ever hands them over.
 	function toCtx(bidding) {
 		return tokens(bidding).map(function (t) {
 			if (t === 'P') return '--';
-			if (t === 'X') return 'Db';
-			if (t === 'XX') return 'Rd';
+			if (t === 'D' || t === 'X') return 'Db';
+			if (t === 'R' || t === 'XX') return 'Rd';
 			return t;
 		}).join('');
 	}
@@ -343,39 +348,113 @@
 		return true;
 	}
 
-	// Double / redouble only appear when opponents actually compete (compete > 0).
+	// Double / redouble appear only once the opponents compete. Unlike the suit bids these
+	// carry NO data-tooltip-id and no text - they are icon buttons sitting just left of PASS:
+	//     <button class="mr-2"><div ...><img alt="d" src="/assets/D-*.png"></div></button>
+	// alt is a lowercase single letter, so it cannot collide with the suit bids' "C2"/"N3".
+	// ("r" for redouble is inferred from the app's own X->D / XX->R mapping, not yet observed.)
 	function doubleButton(kind) {
+		var alts = kind === 'XX' ? ['r', 'R'] : ['d', 'D'];
+		for (var i = 0; i < alts.length; i++) {
+			var img = document.querySelector('button img[alt="' + alts[i] + '"]');
+			if (!img) continue;
+			var b = img.closest('button');
+			if (b && b.offsetParent !== null && !b.disabled) return b;
+		}
+		// last resort: a text-labelled control, in case the icon set ever changes
 		var want = kind === 'XX' ? ['XX', 'REDBL', 'RDBL'] : ['X', 'DBL', 'DOUBLE'];
-		var byId = document.querySelector('button[data-tooltip-id="' + want[0] + '"]');
-		if (byId && byId.offsetParent !== null) return byId;
-		return Array.prototype.slice.call(document.querySelectorAll('button')).find(function (b) {
-			var t = (b.textContent || '').trim().toUpperCase();
-			return want.indexOf(t) !== -1 && b.offsetParent !== null && !b.disabled;
+		return Array.prototype.slice.call(document.querySelectorAll('button')).find(function (x) {
+			var t = (x.textContent || '').trim().toUpperCase();
+			return want.indexOf(t) !== -1 && x.offsetParent !== null && !x.disabled;
 		}) || null;
+	}
+
+	// Cuebids keeps every dialog mounted and hides them with opacity:0 / pointer-events:none,
+	// so "is it in the DOM" tells you nothing - the computed style is what matters.
+	function openModal() {
+		return Array.prototype.slice.call(document.querySelectorAll('.modal')).find(function (m) {
+			var cs = getComputedStyle(m);
+			return cs.opacity !== '0' && cs.pointerEvents !== 'none' && cs.visibility !== 'hidden';
+		}) || null;
+	}
+
+	// Truly clickable: on screen, not disabled, not inside a closed (opacity:0) modal.
+	// The print dialog also has a "Confirm", but it is disabled and hidden - this rejects it.
+	function isClickable(el) {
+		if (!el || el.disabled) return false;
+		var r = el.getBoundingClientRect();
+		if (r.width <= 0 || r.height <= 0) return false;
+		var cs = getComputedStyle(el);
+		if (cs.visibility === 'hidden' || cs.opacity === '0' || cs.pointerEvents === 'none') return false;
+		var m = el.closest ? el.closest('.modal') : null;
+		if (m) {
+			var mcs = getComputedStyle(m);
+			if (mcs.opacity === '0' || mcs.pointerEvents === 'none' || mcs.visibility === 'hidden') return false;
+		}
+		return true;
+	}
+
+	// A bid that ends the auction is not committed immediately. Cuebids shows an INLINE bar
+	// on the deal page - not a modal:
+	//     Are you sure?    [ UNDO ]  (9)  [ CONFIRM ]
+	// with a ~10s countdown. Leaving it unanswered (or navigating away first) means the bid
+	// never lands and the board keeps coming back round, so CONFIRM must be clicked promptly.
+	// Matching is exact so UNDO is never hit.
+	function confirmButton() {
+		var btns = Array.prototype.slice.call(document.querySelectorAll('button')).filter(isClickable);
+		var inline = btns.find(function (b) {
+			return /^confirm$/i.test((b.textContent || '').trim());
+		});
+		if (inline) return inline;
+
+		// modal variant, if the app ever uses one: only "Are you sure?", never sign-out
+		var m = openModal();
+		if (!m) return null;
+		var txt = (m.textContent || '').replace(/\s+/g, ' ');
+		if (/sign out/i.test(txt) || !/are you sure/i.test(txt)) return null;
+		return Array.prototype.slice.call(m.querySelectorAll('button')).filter(isClickable)
+			.find(function (b) { return /^(yes|ok)$/i.test((b.textContent || '').trim()); }) || null;
+	}
+
+	// Click a control, then answer the confirmation bar if one appears. Polled for ~3s
+	// because the bar animates in; the caller must not navigate away before this resolves.
+	function clickAndConfirm(btn, done) {
+		btn.click();
+		var tries = 0;
+		(function check() {
+			var yes = confirmButton();
+			if (yes) {
+				log('clicking CONFIRM');
+				yes.click();
+				return setTimeout(function () { done(true); }, 400);
+			}
+			if (++tries < 10) return setTimeout(check, 300);
+			done(true);   // no confirmation required for this bid
+		})();
 	}
 
 	function place(bid, done) {
 		if (bid === 'PASS' || bid === 'P' || bid === '--') {
 			var p = passButton();
-			if (p) { p.click(); return done(true); }
+			if (p) return clickAndConfirm(p, done);
 			return done(false, 'no PASS button');
 		}
 		if (bid === 'X' || bid === 'Db' || bid === 'XX' || bid === 'Rd') {
 			var kind = (bid === 'XX' || bid === 'Rd') ? 'XX' : 'X';
 			var d = doubleButton(kind);
-			if (d) { d.click(); return done(true); }
+			if (d) return clickAndConfirm(d, done);
 			return done(false, 'no ' + kind + ' button (opponents may not be competing)');
 		}
 		if (!/^[1-7][CDHSN]$/.test(bid)) return done(false, 'unrecognised bid ' + bid);
 
 		// Already on the right level?
 		var direct = bidButton(bid);
-		if (direct) { direct.click(); return done(true); }
+		if (direct) return clickAndConfirm(direct, done);
 
 		if (!selectLevel(bid.charAt(0))) return done(false, 'no level tab ' + bid.charAt(0));
 		setTimeout(function () {
 			var b = bidButton(bid);
-			if (b) { b.click(); return done(true); }
+			if (b) return clickAndConfirm(b, done);
 			done(false, 'bid button ' + bid + ' not found after selecting level');
 		}, 250);
 	}
@@ -399,6 +478,125 @@
 		return arrows[0] || null;
 	}
 
+	// ---------------------------------------------------------------- sweep mode
+	//
+	// With a HUMAN partner a board does not play through: Brill bids once and then the board
+	// waits for the partner. So instead of sitting on one board we work the session list -
+	// open a board that needs us, bid, come back, repeat.
+	//
+	// The list is a <table>. A board needing our action shows a red bell; one waiting on the
+	// partner shows a greyed envelope:
+	//     needs us   <svg class="fill-red-400">      (bell)
+	//     waiting    <svg class="fill-gray-400/20">  (envelope)
+	// Only ~13 <tr> exist for 20 boards (virtualised), so always re-query after navigating.
+
+	function isDealPage() { return /^\/session\/deal\/[^/]+/.test(location.pathname); }
+	function isListPage() { return /^\/session\/[^/]+\/?$/.test(location.pathname); }
+	function sweepEnabled() { return localStorage.getItem('BRILL_SWEEP') !== '0'; }
+
+	// The row's left border encodes its state, straight from the app's own render:
+	//     v = deal.turn === myUid          -> border-[#ff6961]  (red)   my turn to bid
+	//     x = deal.toSee.includes(myUid)   -> border-[#34d399]  (green) finished, unseen result
+	//     otherwise                        -> border-transparent
+	// The red class is a truer "my turn" signal than the bell icon, so prefer it and keep the
+	// bell as a fallback in case the palette changes.
+	var RED_ROW = /border-\[#ff6961\]/;
+	var GREEN_ROW = /border-\[#34d399\]/;
+
+	function bellRows() {
+		var trs = Array.prototype.slice.call(document.querySelectorAll('tr'));
+		var red = trs.filter(function (tr) { return RED_ROW.test((tr.className || '').toString()); });
+		if (red.length) return red;
+		return trs.filter(function (tr) { return tr.querySelector('svg.fill-red-400'); });
+	}
+
+	// Finished boards whose result we have not opened yet. Opening one clears it from toSee.
+	function toSeeRows() {
+		return Array.prototype.slice.call(document.querySelectorAll('tr'))
+			.filter(function (tr) { return GREEN_ROW.test((tr.className || '').toString()); });
+	}
+
+	// Row text begins with the board number, e.g. "19 Q6 QT974 AKQT5" -> board 1.
+	function rowKey(tr) {
+		return (tr.textContent || '').replace(/\s+/g, '').slice(0, 24);
+	}
+
+	// A board is never permanently skipped: the partner keeps bidding, so a board we just
+	// handled will legitimately need us again later. Instead each row gets a cooldown
+	// timestamp - short after a successful bid (just long enough for the bell to clear),
+	// long after a failure so one unclickable bid cannot spin the sweep.
+	var COOLDOWN_OK = 15000;        // 15s
+	var COOLDOWN_FAIL = 300000;     // 5min
+	var skipBoards = {};            // rowKey -> epoch ms until which we ignore the row
+	var idleLogged = false;
+	var bidCount = 0;
+	var viewingKey = null;          // set when a board was opened only to mark its result seen
+
+	function viewResults() { return localStorage.getItem('BRILL_VIEW') !== '0'; }
+	var pendingRowKey = null;
+	var cameFromList = false;
+	var returning = false;
+	var dealOpenedAt = 0;
+	var lastPath = '';
+
+	function returnToList(sessionId) {
+		if (returning) return;
+		returning = true;
+		setTimeout(function () {
+			if (cameFromList && history.length > 1) history.back();
+			else if (sessionId) location.assign('/session/' + sessionId);
+			returning = false;
+		}, CFG.settle);
+	}
+
+	function coolDown(key, ms) {
+		if (key) skipBoards[key] = Date.now() + ms;
+	}
+
+	function onListPage() {
+		if (!autoBid() || !sweepEnabled()) return;
+		var now = Date.now();
+		var rows = bellRows().filter(function (tr) {
+			var until = skipBoards[rowKey(tr)];
+			return !until || now > until;
+		});
+		if (!rows.length) {
+			// Nothing to bid. Next: open any finished board whose result we have not seen,
+			// which clears its green marker. Then genuinely idle.
+			var green = viewResults() ? toSeeRows().filter(function (tr) {
+				var until = skipBoards[rowKey(tr)];
+				return !until || now > until;
+			}) : [];
+			if (green.length) {
+				idleLogged = false;
+				viewingKey = rowKey(green[0]);
+				pendingRowKey = viewingKey;
+				cameFromList = true;
+				log('viewing result of board ' + viewingKey.slice(0, 3) + ' (' + green.length + ' unseen)');
+				banner('Viewing result…', '#6b7280');
+				green[0].click();
+				return;
+			}
+			// Stay on the list and keep watching - the markers are Firestore-driven, so a
+			// row lights up by itself when the partner acts. No reload needed.
+			if (!idleLogged) {
+				idleLogged = true;
+				var anyLeft = document.body.textContent.indexOf('Deals left: 0') === -1;
+				var msg = anyLeft ? 'Waiting for partner' : 'Session complete';
+				log(msg.toLowerCase() + ' - ' + bidCount + ' board(s) bid, nothing to do');
+				banner(msg + ' — ' + bidCount + ' bid', anyLeft ? '#6b7280' : '#15803d');
+			}
+			return;
+		}
+		idleLogged = false;
+		viewingKey = null;
+		pendingRowKey = rowKey(rows[0]);
+		cameFromList = true;
+		log('opening board ' + pendingRowKey.slice(0, 3) + ' (' + rows.length + ' needing action)');
+		banner('Opening next board…', '#6b7280');
+		rows[0].click();
+	}
+
 	function banner(text, color) {
 		var el = document.getElementById('brill-banner');
 		if (!el) {
@@ -419,20 +617,65 @@
 
 	function tick() {
 		if (busy) return;
+
+		// Track navigation so we can time out a board that never becomes actionable.
+		if (location.pathname !== lastPath) {
+			lastPath = location.pathname;
+			dealOpenedAt = Date.now();
+		}
+
+		if (isListPage()) { onListPage(); return; }
+		if (!isDealPage()) return;
+
 		var deal = currentDeal();
+
+		// Landed on a board that never became bidable - either not our turn after all, or
+		// ⏩ walked us onto a board waiting for the partner. Head back to the list rather
+		// than sitting here; without this the sweep dead-ends on the first such board.
+		if (autoBid() && sweepEnabled() &&
+			Date.now() - dealOpenedAt > 20000 && (!deal || !passButton())) {
+			log('board not actionable after 20s, backing off');
+			coolDown(pendingRowKey, COOLDOWN_FAIL);
+			pendingRowKey = null;
+			viewingKey = null;
+			returnToList(deal && deal.sessionId);
+			return;
+		}
+
 		if (!deal || !deal.hand) return;
 
-		// Board done -> move to the next one so a session plays straight through.
-		// Only in auto mode: in advisory mode the user is driving and should not be
-		// navigated away. advanced[] keeps us from clicking twice for the same board.
+		// Board done -> advance with the green ⏩ next-board button. Falls back to the session
+		// list when there is no ⏩ (last board), which is also how the sweep finds the next
+		// board that actually needs us.
 		if (deal.finished) {
-			if (!autoBid() || advanced[deal.id]) return;
+			if (!autoBid()) return;
+
+			// Opened purely to clear the green "unseen result" marker - being here is the
+			// whole job, so go straight back rather than walking on with ⏩.
+			if (viewingKey) {
+				coolDown(viewingKey, COOLDOWN_FAIL);
+				viewingKey = null;
+				pendingRowKey = null;
+				log('result seen, back to the list');
+				returnToList(deal.sessionId);
+				return;
+			}
+
+			if (advanced[deal.id]) return;
+			coolDown(pendingRowKey, COOLDOWN_FAIL);   // finished: never re-open this row
+			pendingRowKey = null;
 			var nb = nextBoardButton();
-			if (!nb) return;                        // last board of the session
-			advanced[deal.id] = true;
-			log('board finished, advancing to next');
-			banner('Next board…', '#6b7280');
-			setTimeout(function () { nb.click(); }, CFG.settle);
+			if (nb) {
+				advanced[deal.id] = true;
+				log('board finished, clicking next-board');
+				banner('Next board…', '#6b7280');
+				setTimeout(function () { nb.click(); }, CFG.settle);
+				return;
+			}
+			if (sweepEnabled()) {
+				log('board finished, no next-board button - back to the list');
+				returnToList(deal.sessionId);
+			}
 			return;
 		}
 
@@ -447,6 +690,9 @@
 
 		busy = true;
 		lastKey = key;
+		// snapshot the position we are asking about, to validate the answer against later
+		var askedId = deal.id;
+		var askedBidding = deal.bidding;
 
 		var url = baseUrl() + '/bid'
 			+ '?user=' + encodeURIComponent('CuebidsBrill')
@@ -474,12 +720,44 @@
 				}
 				log('Brill says', data.bid);
 				if (!autoBid()) { banner('Brill suggests ' + data.bid, '#2563eb'); return; }
+
+				// The answer takes ~1s, and ⏩ / returnToList may have moved us in the
+				// meantime. Re-check that we are still on the same board at the same point
+				// in the auction before clicking, or we would bid one board's call on
+				// another. (Same re-check-at-click-time guard PlayWithBrill.js uses.)
+				var nowDeal = currentDeal();
+				if (!nowDeal || nowDeal.id !== askedId || nowDeal.bidding !== askedBidding || !passButton()) {
+					log('position moved on since asking - discarding ' + data.bid);
+					lastKey = null;
+					return;
+				}
 				setTimeout(function () {
 					place(data.bid, function (ok, why) {
-						if (ok) { banner('Brill bid ' + data.bid, '#15803d'); return; }
-						banner('Could not bid ' + data.bid, '#b91c1c');
-						log('place failed:', why);
-						lastKey = null;   // let the next tick retry this position
+						if (!ok) {
+							banner('Could not bid ' + data.bid, '#b91c1c');
+							log('place failed:', why);
+							// In a sweep, a bid we cannot click would spin forever - drop the
+							// board and move on rather than blocking the remaining boards.
+							if (autoBid() && sweepEnabled() && cameFromList && pendingRowKey) {
+								coolDown(pendingRowKey, COOLDOWN_FAIL);
+								pendingRowKey = null;
+								returnToList(deal.sessionId);
+							} else {
+								lastKey = null;   // otherwise retry this position next tick
+							}
+							return;
+						}
+						bidCount++;
+						banner('Brill bid ' + data.bid, '#15803d');
+						// Human partner: the board now waits for them, so head back to the
+						// list and pick up the next board that needs us.
+						if (autoBid() && sweepEnabled() && cameFromList) {
+							// short cooldown only: once the partner answers, this same board
+							// will need Brill again and must be picked up on a later pass
+							coolDown(pendingRowKey, COOLDOWN_OK);
+							pendingRowKey = null;
+							setTimeout(function () { returnToList(deal.sessionId); }, 1200);
+						}
 					});
 				}, CFG.settle);
 			},
@@ -514,7 +792,27 @@
 		},
 		deal: function () { return currentDeal(); },
 		deals: function () { return deals; },
-		reset: function () { lastKey = null; busy = false; advanced = {}; return 'ok'; },
+		reset: function () {
+			lastKey = null; busy = false; advanced = {};
+			skipBoards = {}; idleLogged = false; bidCount = 0;
+			pendingRowKey = null; viewingKey = null;
+			return 'ok';
+		},
+		sweep: function () {
+			var now = Date.now();
+			var cooling = {};
+			Object.keys(skipBoards).forEach(function (k) {
+				var left = Math.round((skipBoards[k] - now) / 1000);
+				if (left > 0) cooling[k] = left + 's';
+			});
+			return {
+				enabled: sweepEnabled(), viewResults: viewResults(), bidCount: bidCount,
+				page: isListPage() ? 'list' : (isDealPage() ? 'deal' : 'other'),
+				myTurnRows: isListPage() ? bellRows().map(rowKey) : null,
+				unseenRows: isListPage() ? toSeeRows().map(rowKey) : null,
+				coolingDown: cooling, pending: pendingRowKey, viewing: viewingKey
+			};
+		},
 		next: function () {
 			var b = nextBoardButton();
 			if (!b) return 'no next-board button';
