@@ -1,4 +1,4 @@
-//BBOalert, 2026-06-26 Play with Brill
+//BBOalert, 2026-08-08 Play with Brill
 //BBOalert, localStorage.BRILL_SERVER = 'local'      // → http://localhost:8085
 //BBOalert, localStorage.removeItem('BRILL_SERVER')  // → back to brillservice (https://brillservice.aalborgdata.dk, default)
 Option, Robot Brill
@@ -1149,7 +1149,7 @@ BrillsTurnToBid = function (overlay) {
 		if (!deal["hand"]  || deal["hand"].length < 13) {
 			console.log(getNow(true) + " Updated hand due to timing" + deal["hand"] + " " + myCardsDisplayed)
 			if (getMyCards().length > 26) {
-				alert("Hand is too big, something is wrong")
+				console.warn(getNow(true) + " Hand is too big, something is wrong: " + getMyCards())
 			}
 			deal["hand"] = formatCards(getMyCards())
 		}
@@ -1229,7 +1229,7 @@ BrillsTurnToBid = function (overlay) {
 				});
 		} catch (error) {
 			// Handle any errors that occur during the fetch request
-			alert('Error fetching data:', error.message);
+			alert('Error fetching data: ' + error.message);
 			// Show an error message to the user or perform other error handling actions
 			overlay = removeSpinner(overlay);
 			biddingInProgress = false;
@@ -1264,7 +1264,7 @@ BrillsTurnToPlay = function (overlay) {
 		if (!deal["hand"]  ||  deal["hand"].length < 13) {
 			console.log(getNow(true) + " Updated hand due to timing" + deal["hand"] + " " + myCardsDisplayed)
 			if (getMyCards().length > 26) {
-				alert("To many cards in hand, something is wrong")
+				console.warn(getNow(true) + " Too many cards in hand, something is wrong: " + getMyCards())
 			}
 			deal["hand"] = formatCards(getMyCards())
 		}
@@ -1687,7 +1687,8 @@ removedeal = function () {
 savedeal = function (dealnumber, deal) {
 	if (dealnumber) {
 		if (deal["dummy"] == deal["hand"]) {
-			alert ("Hand and dummy are the same - BBO rotated the deal")
+			// BBO rotated the deal - skip saving, we recover on the next update
+			console.warn(getNow(true) + " savedeal: hand and dummy are the same - BBO rotated the deal, not saving")
 		} else {
 			localStorage.setItem('BidWithBrill' + dealnumber, JSON.stringify(deal))
 		}
