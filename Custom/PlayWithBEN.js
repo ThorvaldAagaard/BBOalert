@@ -807,39 +807,91 @@ makePlay = function(cv) {
 	}
 }
 
+// Poll test() every interval ms until it returns something truthy or timeout ms have passed.
+// Calls back with the truthy value, or with null on timeout.
+waitFor = function (test, timeout, interval, callback) {
+    var waited = 0;
+    (function poll() {
+        var result = null;
+        try { result = test(); } catch (e) { }
+        if (result) return callback(result);
+        if (waited >= timeout) return callback(null);
+        waited += interval;
+        setTimeout(poll, interval);
+    })();
+}
+
+getClaimRejectedNotification = function () {
+    var n = $(".notificationClass div:visible:contains('Claim rejected')", PWD);
+    return n.length > 0 ? n : null;
+}
+
+// Claim 'tricks' tricks. The callback gets true only when the claim really went through.
+// Every other outcome - rejected, dialog never opened, opponents never answered - calls back
+// with false, because the caller then has to play a card: after a claim that goes nowhere no
+// card is played, so BBO fires no onNewPlayedCard and nothing else restarts the play flow.
 makeClaim = function (tricks, card, callback) {
     var tricksText = parseInt(tricks);
+    var settled = false;
+    var finish = function (accepted, reason) {
+        if (settled) return;
+        settled = true;
+        console.log(getNow(true) + " Claim " + (accepted ? "accepted" : "not accepted") + " - " + reason);
+        callback(accepted);
+    };
+    var cancelDialog = function () {
+        $("claim-dialog button:contains('Cancel')", PWD).first().click();
+    };
 
     // Step 1: Click the initial Claim button
     $(".claimButtonClass:contains('Claim')", PWD).click();
 
-    // Wait before step 2
-    setTimeout(function () {
-        // Step 2: Click the button that matches the number of tricks
-        $("claim-dialog button", PWD).filter(function () {
+    // Step 2: wait for the dialog to render, then click the button for the number of tricks
+    waitFor(function () {
+        var b = $("claim-dialog button", PWD).filter(function () {
             return $(this).text().trim() === tricksText.toString();
-        }).click();
+        });
+        return b.length > 0 ? b.first() : null;
+    }, 3000, 100, function (trickButton) {
+        if (!trickButton) {
+            cancelDialog();
+            return finish(false, "claim dialog did not offer " + tricksText + " tricks");
+        }
+        trickButton.click();
 
-        // Wait again before step 3
-        setTimeout(function () {
-            // Step 3: Click the final 'Claim' confirmation button
-            $("claim-dialog button:contains('Claim')", PWD).click();
+        // Step 3: wait for the final 'Claim' confirmation button, then click it
+        waitFor(function () {
+            var b = $("claim-dialog button", PWD).filter(function () {
+                var t = $(this).text().trim();
+                return t.toLowerCase() === "claim" ||
+                    (t.indexOf("Claim") > -1 && t.toLowerCase().indexOf("cancel") === -1);
+            });
+            return b.length > 0 ? b.first() : null;
+        }, 2000, 100, function (confirmButton) {
+            if (!confirmButton) {
+                cancelDialog();
+                return finish(false, "confirmation button never appeared");
+            }
+            confirmButton.click();
 
-            // Wait before checking for rejection
-            setTimeout(function () {
-                if ($(".notificationClass div:visible:contains('Claim rejected')", PWD).length > 0) {
-                    $(".notificationClass div:visible:contains('Claim rejected')", PWD).parent().hide();
-                    console.log("Claim rejected");
-                    callback(false);
-                } else {
-                    console.log("Claiming " + tricks + " tricks");
-                    callback(true);
+            // Step 4: opponents can take several seconds to answer, so poll for the outcome
+            // instead of deciding after a fixed delay. Only an emptied hand counts as accepted -
+            // a timeout while we still hold cards is treated as "not accepted" so we play on.
+            waitFor(function () {
+                var rejected = getClaimRejectedNotification();
+                if (rejected) return { rejected: rejected };
+                if (getMyCards().length == 0) return { accepted: true };
+                return null;
+            }, 10000, 200, function (outcome) {
+                if (outcome && outcome.rejected) {
+                    outcome.rejected.parent().hide();
+                    return finish(false, "claim rejected");
                 }
-            }, 1000);
-
-        }, 300); // delay before final 'Claim'
-
-    }, 300); // delay before selecting number of tricks
+                if (outcome && outcome.accepted) return finish(true, "claimed " + tricks + " tricks");
+                finish(false, "no answer to the claim");
+            });
+        });
+    });
 };
 
 // Check if this should be changed to SelectBid
@@ -1166,13 +1218,31 @@ BENsTurnToPlay = function (overlay) {
 						// Only claim as declarer or dummy. As defender we can only conceed
 						if (data.claim && (data.player == 1 || data.player == 3)) {
 							console.log(getNow(true) + " Claiming " + data.claim + " tricks")
-							makeClaim(data.claim, data.card, function(result) {
-								console.log("Claim result:", result);
-								if (!result && stillMyTurn) {
-									setTimeout(() => makePlay(data.card[1].replace("T", "10") + data.card[0]),0);
-								}
+							makeClaim(data.claim, data.card, function (accepted) {
 								overlay = removeSpinner(overlay);
 								playInProgress = false;
+								if (accepted) return;
+								// The claim did not go through, so we have to play after all.
+								// Nothing else will restart us: no card was played, so there is no
+								// onNewPlayedCard, and the dedup key is unchanged - clear it as well.
+								lastPlayKey = null;
+								// Re-check the turn here, not before the claim - the dialog took seconds
+								if (!isMyTurnToPlay()) {
+									console.log(getNow(true) + " Claim not accepted, but no longer my turn to play")
+									return;
+								}
+								console.log(getNow(true) + " Claim not accepted - playing " + data.card + " instead")
+								var playedBefore = getPlayedCards();
+								setTimeout(() => makePlay(data.card[1].replace("T", "10") + data.card[0]), 0);
+								// If that click did not register we would be stuck, so re-drive the flow.
+								// Only when nothing was played since - otherwise the normal flow took over.
+								setTimeout(function () {
+									if (!playInProgress && isMyTurnToPlay() && getPlayedCards() == playedBefore) {
+										console.log(getNow(true) + " Card not played after rejected claim - retrying")
+										playInProgress = true;
+										BENsTurnToPlay(addSpinner());
+									}
+								}, 3000);
 							});
 						} else {
 							console.log(getNow(true) + " BENsTurnToBid BEN would like to play:",data.card)
