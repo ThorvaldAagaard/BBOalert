@@ -1,14 +1,24 @@
 // ==UserScript==
 // @name         Cuebids with Brill
 // @namespace    https://github.com/ThorvaldAagaard/BBOalert
-// @version      0.1.0
+// @version      0.5.0
 // @description  Let Brill bid your seat on cuebids.com. Advisory by default; auto-bid is opt-in.
 // @match        https://cuebids.com/*
-// @grant        GM_xmlhttpRequest
-// @connect      brillservice.aalborgdata.dk
-// @connect      localhost
+// @grant        none
 // @run-at       document-start
 // ==/UserScript==
+//
+// @grant none IS LOAD-BEARING - do not add a @grant back.
+// Any @grant makes Tampermonkey run this in a sandbox, where `window` is a wrapper around
+// the page's real window. Two things then break silently:
+//   1. window.fetch = ... patches the SANDBOX's fetch, so the page's Firestore stream is
+//      never seen and no deal is ever captured - the script just sits there doing nothing.
+//   2. window.__brill lands on the sandbox, so `__brill` in the devtools console reports
+//      "not defined" even though the script is installed, enabled and running.
+// With @grant none the script runs in page context, exactly like the injected build this
+// was developed against. GM_xmlhttpRequest is then unavailable, which is fine: cuebids.com
+// sends no CSP and Brill.Service sends Access-Control-Allow-Origin: *, so a plain fetch
+// reaches it (request() already falls back to fetch when GM_xmlhttpRequest is missing).
 //
 // HOW IT WORKS
 // ------------
@@ -351,12 +361,21 @@
 	// Double / redouble appear only once the opponents compete. Unlike the suit bids these
 	// carry NO data-tooltip-id and no text - they are icon buttons sitting just left of PASS:
 	//     <button class="mr-2"><div ...><img alt="d" src="/assets/D-*.png"></div></button>
-	// alt is a lowercase single letter, so it cannot collide with the suit bids' "C2"/"N3".
-	// ("r" for redouble is inferred from the app's own X->D / XX->R mapping, not yet observed.)
+	//
+	// The alt is the key of the app's own image map, so these are exact, not guesses:
+	//     LI = { C1..N7: <bid pngs>, d: "/assets/D-*.png", ps: "/assets/P-*.png",
+	//            r: "/assets/R-*.png" }
+	//     Ra(): e.length === 1 ? e.toLowerCase() : e[1] + e[0]   // "1S"->"S1", "D"->"d", "R"->"r"
+	// Being a lowercase single letter it cannot collide with the suit bids' "C2"/"N3".
+	// The asset path is the fallback anchor: the build hash changes per deploy but the
+	// "D-" / "R-" prefix does not, and no suit bid starts with a bare letter.
 	function doubleButton(kind) {
 		var alts = kind === 'XX' ? ['r', 'R'] : ['d', 'D'];
-		for (var i = 0; i < alts.length; i++) {
-			var img = document.querySelector('button img[alt="' + alts[i] + '"]');
+		var prefix = kind === 'XX' ? '/assets/R-' : '/assets/D-';
+		var sels = alts.map(function (a) { return 'button img[alt="' + a + '"]'; });
+		sels.push('button img[src^="' + prefix + '"]');
+		for (var i = 0; i < sels.length; i++) {
+			var img = document.querySelector(sels[i]);
 			if (!img) continue;
 			var b = img.closest('button');
 			if (b && b.offsetParent !== null && !b.disabled) return b;
@@ -597,6 +616,45 @@
 		rows[0].click();
 	}
 
+	// On-page ON/OFF control, so arming Brill never needs the console. Deliberately labelled
+	// with text that none of our own selectors match (they look for PASS, ^confirm$,
+	// data-tooltip-id, role=tab or tr), so the script can never click its own button.
+	function paintToggle() {
+		var el = document.getElementById('brill-toggle');
+		if (!el) return;
+		var on = autoBid();
+		el.textContent = on ? 'Brill: BIDDING' : 'Brill: advisory';
+		el.style.background = on ? '#15803d' : '#4b5563';
+		el.title = on
+			? 'Brill is placing bids - click for advisory only'
+			: 'Advisory only (suggests, never clicks) - click to let Brill bid';
+	}
+
+	function ensureToggle() {
+		if (!document.body) return;                 // @run-at document-start: body may not exist
+		if (document.getElementById('brill-toggle')) { paintToggle(); return; }
+		var el = document.createElement('button');
+		el.id = 'brill-toggle';
+		el.type = 'button';
+		el.style.cssText = 'position:fixed;left:10px;bottom:10px;z-index:99999;padding:8px 12px;' +
+			'border:none;border-radius:8px;font:600 13px system-ui,sans-serif;color:#fff;' +
+			'cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.45);opacity:.93';
+		el.addEventListener('click', function (ev) {
+			ev.preventDefault();
+			ev.stopPropagation();
+			if (autoBid()) localStorage.removeItem('BRILL_AUTOBID');
+			else localStorage.setItem('BRILL_AUTOBID', '1');
+			// drop latched state so the change takes effect on the very next tick
+			lastKey = null;
+			idleLogged = false;
+			busy = false;
+			log('auto-bid ' + (autoBid() ? 'ON' : 'OFF') + ' (toggle)');
+			paintToggle();
+		});
+		document.body.appendChild(el);
+		paintToggle();
+	}
+
 	function banner(text, color) {
 		var el = document.getElementById('brill-banner');
 		if (!el) {
@@ -616,6 +674,7 @@
 	var busy = false, lastKey = null, advanced = {};
 
 	function tick() {
+		ensureToggle();
 		if (busy) return;
 
 		// Track navigation so we can time out a board that never becomes actionable.
@@ -822,5 +881,5 @@
 	};
 
 	setInterval(tick, CFG.poll);
-	log('loaded. autoBid=' + autoBid() + ' server=' + baseUrl());
+	log('v0.5.0 loaded. autoBid=' + autoBid() + ' sweep=' + sweepEnabled() + ' server=' + baseUrl());
 })();
