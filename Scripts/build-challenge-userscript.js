@@ -90,13 +90,20 @@ body += banner('generated: Custom/PlayWithBrill.js -> scriptList') +
 body += banner('src/iframe/' + LAST + ' (self-starts - must be last)') +
 	read('src', 'iframe', LAST);
 
+// jQuery is INLINED rather than pulled in with @require. The @require path is an extra
+// failure mode with no diagnostic: if Tampermonkey cannot fetch the CDN copy it declines to
+// run the script at all, so not one line of our code executes and the console shows nothing
+// whatsoever - indistinguishable from "not installed". Vendoring the copy the extension
+// already ships (src/jquery-3.5.1.min.js, the exact version BBOalert is built against)
+// makes the userscript self-contained and offline-capable, at ~89 KB.
+const jquery = read('src', 'jquery-3.5.1.min.js');
+
 const header = `// ==UserScript==
 // @name         Play BBO challenges with Brill
 // @namespace    https://github.com/ThorvaldAagaard/BBOalert
 // @version      0.1.0
 // @description  Plays BBO robot challenges with Brill. Standalone - does NOT need the BBOalert extension.
 // @match        *://www.bridgebase.com/v3/*
-// @require      https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
@@ -113,6 +120,10 @@ const header = `// ==UserScript==
 //
 // SAFETY: the lobby driver only ever enters a challenge whose c_challenge_style is
 // ARENA_ROBOT. See TamperMonkey/BBO-lobby-protocol.md.
+
+// --- vendored jQuery 3.5.1 (src/jquery-3.5.1.min.js) ------------------------------
+${jquery}
+// --- end vendored jQuery ----------------------------------------------------------
 
 (function () {
 	if (window.top !== window.self) return;
