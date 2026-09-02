@@ -45,7 +45,9 @@
 //
 // SETTINGS: see CFG below, or from the page console:
 //   localStorage.BRILL_AUTOBID = '1'      // actually place the bid (default: advise only)
-//   localStorage.BRILL_SERVER  = 'local'  // http://localhost:5200 instead of brillservice
+//   localStorage.BRILL_SERVER  = 'local'     // http://localhost:5200
+//   localStorage.BRILL_SERVER  = 'localssl'  // https://localhost:7200
+//   localStorage.BRILL_SERVER  = '<url>'     // used verbatim
 
 (function () {
 	'use strict';
@@ -63,7 +65,14 @@
 	};
 
 	function baseUrl() {
-		return localStorage.getItem('BRILL_SERVER') === 'local'
+		// Same BRILL_SERVER key as PlayWithBrill/PlayChallengeWithBrill - keep the accepted
+		// values identical, or setting it for one script silently misroutes the other.
+		//   'local' -> http://localhost:5200   'localssl' -> https://localhost:7200
+		//   any http(s) URL is used verbatim
+		var s = localStorage.getItem('BRILL_SERVER');
+		if (s && /^https?:\/\//i.test(s)) return s.replace(/\/+$/, '');
+		if (s === 'localssl') return 'https://localhost:7200';
+		return s === 'local'
 			? 'http://localhost:5200'
 			: 'https://brillservice.aalborgdata.dk';
 	}

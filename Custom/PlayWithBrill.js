@@ -1,5 +1,7 @@
 //BBOalert, 2026-08-08 Play with Brill
-//BBOalert, localStorage.BRILL_SERVER = 'local'      // → http://localhost:8085
+//BBOalert, localStorage.BRILL_SERVER = 'local'      // → http://localhost:5200
+//BBOalert, localStorage.BRILL_SERVER = 'localssl'   // → https://localhost:7200
+//BBOalert, localStorage.BRILL_SERVER = '<url>'      // → used verbatim
 //BBOalert, localStorage.removeItem('BRILL_SERVER')  // → back to brillservice (https://brillservice.aalborgdata.dk, default)
 Option, Robot Brill
 
@@ -560,12 +562,27 @@ cardExists = function (card, array) {
 	});
 }
 // Server selection: in the BBO browser console run
-//   localStorage.BRILL_SERVER = 'local'     -> http://localhost:5200 (https variant: http://localhost:7200)
+//   localStorage.BRILL_SERVER = 'local'     -> http://localhost:5200
+//   localStorage.BRILL_SERVER = 'localssl'  -> https://localhost:7200  (note: https, not http)
 //   localStorage.removeItem('BRILL_SERVER') -> back to brillservice (default)
+// BRILL_SERVER accepts:
+//   (unset)      https://brillservice.aalborgdata.dk   - the default
+//   'local'      http://localhost:5200                 - Brill's plain HTTP port
+//   'localssl'   https://localhost:7200                - Brill's SSL port
+//   any URL      used verbatim, e.g. 'https://localhost:7200' or a staging host
+//
+// The SSL port is worth preferring for local work: BBO is served over HTTPS, so calling
+// http://localhost:5200 is a mixed-content request. Browsers normally exempt localhost from
+// mixed-content blocking, but that exemption has moved around between versions - if bids
+// silently stop arriving with 'local', check the console for a blocked request and switch
+// to 'localssl'.
 getBrillBaseUrl = function () {
-	return localStorage.getItem('BRILL_SERVER') === 'local'
-		? 'http://localhost:5200'
-		: 'https://brillservice.aalborgdata.dk';
+	var s = localStorage.getItem('BRILL_SERVER');
+	if (!s) return 'https://brillservice.aalborgdata.dk';
+	if (/^https?:\/\//i.test(s)) return s.replace(/\/+$/, '');
+	if (s === 'local') return 'http://localhost:5200';
+	if (s === 'localssl') return 'https://localhost:7200';
+	return 'https://brillservice.aalborgdata.dk';
 }
 // Player naming for the saved PBN. The server stamps names on the board-saving calls (/play,
 // /claim, /pbn/finalize) into [North]/[East]/[South]/[West] and derives [Room] from the board
