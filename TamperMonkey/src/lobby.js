@@ -288,10 +288,36 @@ function ensureObserver() {
 	try {
 		if (typeof BBOobserver === 'undefined' || !PWD || !PWD.body) return;
 		if (typeof tmr !== 'undefined') clearInterval(tmr);
+
+		// initGlobals() is NOT optional, even though it looks like BBOalert bookkeeping.
+		// BBOobserver.checkAnnouncementPanel() reads `announcemenDisplayed` - note the
+		// missing 't'; globals.js declares the correctly spelled `announcementDisplayed`
+		// and never uses it. The typo'd name only ever comes into existence because
+		// initGlobals() does a bare `announcemenDisplayed = false` (globals.js:143), which
+		// creates it as an implicit global.
+		//
+		// Skipping initGlobals here meant the first mutation threw ReferenceError inside
+		// the observer callback - and because that callback disconnects at the top and
+		// re-observes at the bottom, the throw left the observer PERMANENTLY detached.
+		// Symptom: seated at a table, hooks loaded, and absolute silence.
+		initGlobals();
 		navDivDisplayed = true;
 		setScriptList();
 		brillDataLoad();
-		BBOobserver.observe(PWD.body, config);
+
+		// Guard the callback rather than handing BBOobserverCallback straight to the
+		// observer. Its disconnect-first/re-observe-last shape means ANY exception in any
+		// check kills observation for good, with no further output. Re-attaching on throw
+		// turns that from fatal into a logged glitch.
+		var guarded = new MutationObserver(function (list, obs) {
+			try {
+				BBOobserverCallback(list, obs);
+			} catch (e) {
+				lobbyLog('observer callback threw (re-attaching): ' + (e && e.message));
+				try { obs.observe(PWD.body, config); } catch (e2) { }
+			}
+		});
+		guarded.observe(PWD.body, config);
 		brillObserverStarted = true;
 		lobbyLog('MutationObserver started (watchdog); helpers=' +
 			(typeof getCardByValue === 'function'));
