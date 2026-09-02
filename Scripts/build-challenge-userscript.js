@@ -101,7 +101,7 @@ const jquery = read('src', 'jquery-3.5.1.min.js');
 const header = `// ==UserScript==
 // @name         Play BBO challenges with Brill
 // @namespace    https://github.com/ThorvaldAagaard/BBOalert
-// @version      0.1.0
+// @version      0.2.0
 // @description  Plays BBO robot challenges with Brill. Standalone - does NOT need the BBOalert extension.
 // @match        *://www.bridgebase.com/v3/*
 // @grant        none
@@ -109,6 +109,11 @@ const header = `// ==UserScript==
 // ==/UserScript==
 //
 // GENERATED FILE - do not edit. Run: node Scripts/build-challenge-userscript.js
+//
+// BUMP @version IN Scripts/build-challenge-userscript.js WHEN YOU CHANGE ANYTHING.
+// Tampermonkey compares versions on update: reinstalling with an unchanged version can
+// leave the previously installed copy in place, which looks identical to "the fix did
+// not work".
 // Sources: src/iframe/*, TamperMonkey/src/shim.js, TamperMonkey/src/lobby.js,
 //          Custom/PlayWithBrill.js
 //
