@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 //
 // Builds TamperMonkey/PlayChallengeWithBrill.user.js - a standalone userscript that plays
-// BBO robot challenges WITHOUT the BBOalert extension.
+// BBO challenges WITHOUT the BBOalert extension (robot challenges by default; human ones
+// only when BRILL_ALLOW_HUMAN is set).
 //
 // Why a build step rather than a hand-written file: the DOM selectors in src/iframe are
 // BBOalert's real asset and its real fragility. A hand-copied fork would silently drift the
@@ -101,8 +102,8 @@ const jquery = read('src', 'jquery-3.5.1.min.js');
 const header = `// ==UserScript==
 // @name         Play BBO challenges with Brill
 // @namespace    https://github.com/ThorvaldAagaard/BBOalert
-// @version      0.2.0
-// @description  Plays BBO robot challenges with Brill. Standalone - does NOT need the BBOalert extension.
+// @version      0.3.1
+// @description  Plays BBO challenges with Brill (robots by default; humans opt-in). Standalone - no BBOalert extension needed.
 // @match        *://www.bridgebase.com/v3/*
 // @grant        none
 // @run-at       document-idle
@@ -123,8 +124,10 @@ const header = `// ==UserScript==
 // NOT 'use strict' - deliberately. PlayWithBrill's blocks pass state between hooks via
 // implicit globals (\`newdeal = true\` with no var), which strict mode turns into errors.
 //
-// SAFETY: the lobby driver only ever enters a challenge whose c_challenge_style is
-// ARENA_ROBOT. See TamperMonkey/BBO-lobby-protocol.md.
+// OPPONENTS: robot challenges (c_challenge_style ARENA_ROBOT) are played whenever autoplay
+// is on. Human challenges (PK) additionally require localStorage.BRILL_ALLOW_HUMAN = '1' -
+// a separate switch so it is always a deliberate choice.
+// See TamperMonkey/BBO-lobby-protocol.md.
 
 // --- vendored jQuery 3.5.1 (src/jquery-3.5.1.min.js) ------------------------------
 ${jquery}
@@ -143,7 +146,7 @@ ${jquery}
 	var $ = window.jQuery ? window.jQuery.noConflict(true) : null;
 	var jQuery = $;
 	if (!$) {
-		console.error('[brill] jQuery not present - the @require failed to load');
+		console.error('[brill] jQuery missing - the inlined copy failed to evaluate');
 		return;
 	}
 ${body.split('\n').map(l => l ? '\t' + l : l).join('\n')}

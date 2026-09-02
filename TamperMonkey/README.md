@@ -63,8 +63,18 @@ __brillChallenge.where()   // {list, table, details}
 __brillDom.whoAmI()        // check the vendored BBOalert layer is alive
 ```
 
-**It only ever enters challenges whose `c_challenge_style` is `ARENA_ROBOT`.** Human
-challenges are `PK` and are ignored. See `BBO-lobby-protocol.md`.
+Opponents:
+
+```js
+localStorage.BRILL_ALLOW_HUMAN = '1'   // also play PK (human) challenges
+delete localStorage.BRILL_ALLOW_HUMAN  // robot challenges only (default)
+__brillChallenge.allowHuman()          // current state
+```
+
+Robot challenges (`c_challenge_style` `ARENA_ROBOT`) play whenever autoplay is on. Human
+challenges (`PK`) need the extra flag - a deliberate second switch, so turning the driver on
+never by itself starts it playing against people. The console names the opponent before
+entering, e.g. `entering HUMAN challenge vs veronel 0224e851`. See `BBO-lobby-protocol.md`.
 
 ### Browser support
 

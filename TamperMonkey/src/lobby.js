@@ -15,16 +15,24 @@
 // already fetches for itself. Same trick CuebidsWithBrill uses on the Firestore stream:
 // piggyback the app's own data, stay automatically in sync, add no traffic.
 //
-// SAFETY GATE
-// -----------
-// Only challenges with c_challenge_style === "ARENA_ROBOT" are ever entered. Human
-// challenges are "PK". Engine-assisted play against humans is against BBO's terms; this is
-// a server-supplied field, not a heuristic, so the gate cannot quietly drift the way a
-// DOM-based check would.
+// OPPONENT GATE
+// -------------
+// c_challenge_style === "ARENA_ROBOT" (a robot) is always allowed. "PK" is a human opponent
+// and is entered ONLY when BRILL_ALLOW_HUMAN is set.
+//
+// This account is a declared robot - Brill identifies itself as such in its BBO profile - so
+// opponents who challenge it know what they are playing. The opt-in is therefore about
+// deliberateness, not permission: it keeps a reinstall, a cleared autoplay flag, or a copy of
+// this script on some other account from quietly starting to play against people.
+//
+// Both values are server-supplied fields rather than heuristics, so the gate cannot drift the
+// way a DOM-based check would.
 //
 // SETTINGS (page console):
 //   localStorage.BRILL_CHALLENGE_AUTOPLAY = '1'   actually enter challenges (default: off,
 //                                                 report only)
+//   localStorage.BRILL_ALLOW_HUMAN = '1'          also play PK challenges against people
+//                                                 (default: robot challenges only)
 //   delete localStorage.BRILL_CHALLENGE_AUTOPLAY  back to report-only
 
 var LOBBY = {
@@ -41,6 +49,11 @@ var lastLobbyLog = '';
 var lobbyEntered = {};   // tid -> {done, at} recorded when we entered, to detect no progress
 
 function autoPlay() { return localStorage.getItem('BRILL_CHALLENGE_AUTOPLAY') === '1'; }
+
+// Human ("PK") challenges are OFF unless explicitly enabled. Robot challenges need no flag.
+// Separate from autoplay on purpose: turning the driver on should never, by itself, start it
+// playing against people on an account that has not declared itself a robot.
+function allowHuman() { return localStorage.getItem('BRILL_ALLOW_HUMAN') === '1'; }
 
 function lobbyLog() {
 	var a = ['[brill-lobby]'].concat([].slice.call(arguments));
@@ -109,7 +122,13 @@ function myName() { return (whoAmI() || '').trim().toLowerCase(); }
 // Returns {tid, boards, done, total, role} for a challenge, or null if it is not ours to play.
 function playable(d) {
 	if (d.state !== 'RUNNING') return null;
-	if (d.c_challenge_style !== 'ARENA_ROBOT') return null;   // <- the safety gate
+
+	// ARENA_ROBOT is always allowed; PK is a human opponent and needs the opt-in. Both are
+	// server-supplied fields rather than heuristics, so this cannot drift the way a DOM-based
+	// check would.
+	var robot = d.c_challenge_style === 'ARENA_ROBOT';
+	if (!robot && !(d.c_challenge_style === 'PK' && allowHuman())) return null;
+
 	var me = myName();
 	var role = null;
 	if ((d.c_challenger || '').toLowerCase() === me) role = 'challenger';
@@ -118,7 +137,29 @@ function playable(d) {
 	var done = parseInt(d['c_boards_completed_' + role] || '0', 10);
 	var total = parseInt(d.boards || '0', 10);
 	if (!(done < total)) return null;
-	return { tid: d.tid, title: d.title, done: done, total: total, role: role };
+
+	// Whoever we are not - used to pick the right row out of the list.
+	var opponent = (role === 'challenger' ? d.c_challengee : d.c_challenger) || '';
+
+	// The opponent's own progress. We do not gate on it - the format is asynchronous, so our
+	// boards are playable whatever they have done - but it explains the dot colour in the UI:
+	// green means WE still have boards (done < total), red means our side is finished and the
+	// challenge is waiting on them. Logging both makes "nothing to play" self-evidently
+	// correct instead of looking like a stall.
+	var theirDone = parseInt(
+		d['c_boards_completed_' + (role === 'challenger' ? 'challengee' : 'challenger')] || '0', 10);
+
+	return {
+		tid: d.tid, title: d.title, done: done, total: total, role: role,
+		robot: robot, opponent: opponent.toLowerCase(), theirDone: theirDone
+	};
+}
+
+// "robot 5519fea6" / "human challenge vs veronel (0224e851)" - the console should never
+// leave you guessing whether it is about to play a person.
+function describe(c) {
+	return (c.robot ? 'robot challenge ' : 'HUMAN challenge vs ' + c.opponent + ' ')
+		+ c.tid.slice(0, 8);
 }
 
 function robotChallenges() {
@@ -188,14 +229,24 @@ function challengesNavButton() {
 	}).first();
 }
 
-// A robot row carries no name-tag - there is no opponent username to show. That test is
-// language-independent, unlike matching the word "robot", so it is the one we rely on.
-// (A human challenge always renders a name-tag with the opponent's username.)
+// Find the list row for a specific challenge. tlist has already decided WHICH challenge to
+// play; this only has to locate its row, so it matches on identity rather than trying to
+// re-derive robot-ness from the DOM.
 //
-// We only ever call this when tlist has already told us an ARENA_ROBOT challenge is
-// playable, so the name-tag test just has to pick the right ROW, not decide robot-ness.
-function robotRow() {
-	return $('challenge-list-item', PWD).filter(function () {
+//   robot  -> renders no name-tag (there is no opponent username to show)
+//   human  -> renders a name-tag holding the opponent's username
+//
+// Both tests are language-independent. The name-tag also contains a rank badge, so this
+// matches on "contains" rather than equality.
+function challengeRow(target) {
+	var rows = $('challenge-list-item', PWD);
+	if (target && !target.robot && target.opponent) {
+		return rows.filter(function () {
+			var tag = $('name-tag', this).text().replace(/\s+/g, ' ').trim().toLowerCase();
+			return tag.indexOf(target.opponent) !== -1;
+		}).first();
+	}
+	return rows.filter(function () {
 		return $('name-tag', this).length === 0;
 	}).first();
 }
@@ -357,7 +408,10 @@ function lobbyTick() {
 
 	var todo = robotChallenges();
 	var msg = todo.length
-		? todo.map(function (c) { return c.tid.slice(0, 8) + ' ' + c.done + '/' + c.total; }).join(', ')
+		? todo.map(function (c) {
+			return (c.robot ? '' : 'vs ' + c.opponent + ' ') + c.tid.slice(0, 8) +
+				' us ' + c.done + '/' + c.total + ', them ' + c.theirDone + '/' + c.total;
+		}).join(', ')
 		: 'nothing to play';
 	if (msg !== lastLobbyLog) { lobbyLog(msg + (autoPlay() ? '' : '  (autoplay off)')); lastLobbyLog = msg; }
 	if (!todo.length || !autoPlay()) return;
@@ -380,9 +434,9 @@ function lobbyTick() {
 		return;
 	}
 
-	var row = robotRow();
+	var row = challengeRow(target);
 	if (!row.length) {
-		lobbyLog('no robot row on screen for ' + target.tid.slice(0, 8) + ' - backing off');
+		lobbyLog('no row on screen for ' + describe(target) + ' - backing off');
 		lobbyCooldown[target.tid] = Date.now() + LOBBY.cooldown;
 		lobbyBusy = false;
 		return;
@@ -411,7 +465,7 @@ function lobbyTick() {
 		lobbyEntered[target.tid] = { done: target.done, at: Date.now() };
 	}
 
-	lobbyLog('entering robot challenge ' + target.tid.slice(0, 8) +
+	lobbyLog('entering ' + describe(target) +
 		' (' + target.done + '/' + target.total + ' boards done)');
 	var item = $('div.itemClass', row);
 	(item.length ? item[0] : row[0]).click();
@@ -440,6 +494,13 @@ window.__brillChallenge = {
 		b[0].click();
 		return 'clicked: ' + b.text().replace(/\s+/g, ' ').trim();
 	},
+	allowHuman: function (on) {
+		if (on === undefined) return allowHuman();
+		if (on) localStorage.setItem('BRILL_ALLOW_HUMAN', '1');
+		else localStorage.removeItem('BRILL_ALLOW_HUMAN');
+		return allowHuman();
+	},
+
 	autoplay: function (on) {
 		if (on === undefined) return autoPlay();
 		if (on) localStorage.setItem('BRILL_CHALLENGE_AUTOPLAY', '1');

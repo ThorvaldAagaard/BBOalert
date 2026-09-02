@@ -446,6 +446,7 @@ lastBidCtx = null
 lastPlayKey = null
 finalPlaySent = false
 claimDetected = false
+claimedTricks = 0
 
 //Script,onDealEnd
 dealnumber = getDealNumber()
@@ -617,6 +618,7 @@ lastBidCtx = null
 lastPlayKey = null
 finalPlaySent = false
 claimDetected = false
+claimedTricks = 0
 getSuit = function (txt) {
 	let t = txt;
 	switch (t) {
@@ -1058,6 +1060,12 @@ makeClaim = function (tricks, card, callback) {
     var finish = function (accepted, reason) {
         if (settled) return;
         settled = true;
+        if (!accepted) {
+            // Rejected or unanswered: play continues and the board will finish normally, so the
+            // optimistic flag set at confirm time must not survive.
+            claimDetected = false;
+            claimedTricks = 0;
+        }
         console.log(getNow(true) + " Claim " + (accepted ? "accepted" : "not accepted") + " - " + reason);
         callback(accepted);
     };
@@ -1095,6 +1103,23 @@ makeClaim = function (tricks, card, callback) {
                 return finish(false, "confirmation button never appeared");
             }
             confirmButton.click();
+
+            // Record the claim NOW, at confirm time, not when the outcome poll resolves.
+            //
+            // claimDetected is otherwise only set by onAnnouncementDisplayed, which parses the
+            // "I claim N more tricks" panel - that is the prompt the OPPONENT sees. When Brill
+            // claims, nothing recorded it, so sendFinalPlay tagged the board
+            // INCOMPLETE-no-claim and dropped &claim/&tricks.
+            //
+            // Setting it on acceptance is still too late: BBO ends the deal the moment robots
+            // accept, so onDealEnd -> sendFinalPlay ran ~4s before this poll resolved. Observed:
+            //   16:19:54 Claiming 10 tricks
+            //   16:19:55 onDealEnd
+            //   16:19:56 sendFinalPlay ... INCOMPLETE-no-claim
+            //   16:20:00 Claim accepted - claimed 10 tricks
+            // finish(false, ...) clears it again if the claim is rejected and play continues.
+            claimDetected = true;
+            claimedTricks = tricksText;
 
             // Step 4: opponents can take several seconds to answer, so poll for the outcome
             // instead of deciding after a fixed delay. Only an emptied hand counts as accepted -
@@ -1719,8 +1744,12 @@ sendFinalPlayInternal = function () {
 		if (passedOut) {
 			url += "&passedout=true";
 		} else if (claimDetected) {
-			// A real claim dialog was seen on this deal. Send the actual remaining-trick count.
-			var remainingTricks = Math.ceil((52 - playedCount) / 4);
+			// A claim happened on this deal - either one we made (claimedTricks is set) or one
+			// announced to us. Prefer the number we actually claimed; fall back to inferring it
+			// from the uncaptured cards.
+			var remainingTricks = claimedTricks > 0
+				? claimedTricks
+				: Math.ceil((52 - playedCount) / 4);
 			url += "&claim=true&tricks=" + remainingTricks;
 		} else if (!complete) {
 			// Less than 52 cards but no claim was observed - we just missed capturing some cards

@@ -73,10 +73,15 @@ row, distinguished by three fields:
    botstyle="BASIC" fee="0" host="Brill ADA" .../>
 ```
 
-**Any automated driver should require `c_challenge_style === "ARENA_ROBOT"` before entering a
-challenge.** Engine-assisted play against humans is against BBO's terms; this is a single
-server-supplied field rather than a heuristic, so the gate cannot silently drift the way a
-DOM-based check would.
+`c_challenge_style` is the field a driver should gate on. `PlayChallengeWithBrill` plays
+`ARENA_ROBOT` whenever autoplay is on, and `PK` (a human opponent) only when
+`localStorage.BRILL_ALLOW_HUMAN = '1'`.
+
+The Brill account is a **declared robot** - it says so in its BBO profile - so opponents who
+challenge it know what they are playing. The separate opt-in is about deliberateness rather
+than permission: it stops a reinstall, a cleared autoplay flag, or a copy of the script on a
+different account from quietly playing against people. Being a server-supplied field rather
+than a heuristic, the gate cannot silently drift the way a DOM-based check would.
 
 Note `c_boards_completed_*` is per side and reads from *our* perspective once we work out
 whether we are `c_challenger` or `c_challengee` (compare lowercased usernames - BBO returns
