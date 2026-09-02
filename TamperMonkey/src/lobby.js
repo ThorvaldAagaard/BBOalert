@@ -162,6 +162,24 @@ function describe(c) {
 		+ c.tid.slice(0, 8);
 }
 
+// How many challenges are playable in every respect EXCEPT that they are human and the
+// opt-in is off. Reported in the idle message: "nothing to play" with no reason is exactly
+// the kind of silence that wastes an afternoon.
+function humanHeldBack() {
+	if (allowHuman()) return 0;
+	var n = 0;
+	for (var tid in tlist) {
+		var d = tlist[tid];
+		if (d.state !== 'RUNNING' || d.c_challenge_style !== 'PK') continue;
+		var me = myName();
+		var role = (d.c_challenger || '').toLowerCase() === me ? 'challenger'
+			: ((d.c_challengee || '').toLowerCase() === me ? 'challengee' : null);
+		if (!role) continue;
+		if (parseInt(d['c_boards_completed_' + role] || '0', 10) < parseInt(d.boards || '0', 10)) n++;
+	}
+	return n;
+}
+
 function robotChallenges() {
 	var out = [];
 	for (var tid in tlist) {
@@ -253,6 +271,51 @@ function challengeRow(target) {
 
 // The details panel's button bar holds exactly one button ("Play now!"), so take it
 // positionally rather than by English text - same language trap as the nav button.
+// Switch the right-hand pane to History on entering a match, so the boards played and the
+// running score are visible instead of the Mail tab (which also flashes as BBO polls it).
+//
+// Same language trap as the nav button: "History" is English. Ordered fallbacks -
+//   1. localStorage.BRILL_HISTORY_LABEL   explicit override
+//   2. a known label in any of the UI languages
+//   3. position - the rail is Messages / People / History / Account, so index 2
+// Whichever matched is logged, so a wrong pick is visible rather than mysterious.
+var HISTORY_LABELS = ['History', 'Historik', 'Historie', 'Verlauf', 'Historique',
+	'Historial', 'Storico', 'Geschiedenis', 'Historia'];
+
+function historyTab() {
+	var tabs = $('tab-bar-button:visible', PWD);
+	if (!tabs.length) return null;
+
+	var override = localStorage.getItem('BRILL_HISTORY_LABEL');
+	var labels = override ? [override] : HISTORY_LABELS;
+	var byText = tabs.filter(function () {
+		var t = $(this).text().replace(/\s+/g, ' ').trim();
+		for (var i = 0; i < labels.length; i++) {
+			if (t.indexOf(labels[i]) !== -1) return true;
+		}
+		return false;
+	}).first();
+	if (byText.length) return { el: byText, how: 'label "' + byText.text().trim() + '"' };
+
+	if (tabs.length >= 3) return { el: tabs.eq(2), how: 'position 3 of ' + tabs.length };
+	return null;
+}
+
+var historyPaneShown = false;
+
+function showHistoryPane() {
+	if (historyPaneShown) return;
+	var t = historyTab();
+	if (!t) return;
+	historyPaneShown = true;          // set first: one attempt per match, even if the click throws
+	try {
+		t.el[0].click();
+		lobbyLog('side panel -> History (matched by ' + t.how + ')');
+	} catch (e) {
+		lobbyLog('could not switch to History: ' + (e && e.message));
+	}
+}
+
 function playNowButton() {
 	var bar = $('challenge-details-panel .buttonBarClass button:visible', PWD);
 	if (bar.length) return bar.first();
@@ -386,7 +449,13 @@ function lobbyTick() {
 	ensureObserver();
 	if (!scriptList.length && BRILL_SCRIPTS.length) setScriptList();   // backstop
 	if (lobbyBusy) return;
-	if (atTable()) return;             // PlayWithBrill's hooks own the table
+	if (atTable()) {
+		// PlayWithBrill's hooks own the table from here; the only thing left to do is put
+		// the History pane up so the boards played are visible while it works.
+		showHistoryPane();
+		return;
+	}
+	historyPaneShown = false;          // back in the lobby - arm it for the next match
 
 	// Chicken-and-egg: we learn about challenges from the page's own ard.php responses, but
 	// the page only fetches ard.php on the Challenges screen. Starting on the lobby home we
@@ -407,12 +476,16 @@ function lobbyTick() {
 	}
 
 	var todo = robotChallenges();
+	var held = todo.length ? 0 : humanHeldBack();
 	var msg = todo.length
 		? todo.map(function (c) {
 			return (c.robot ? '' : 'vs ' + c.opponent + ' ') + c.tid.slice(0, 8) +
 				' us ' + c.done + '/' + c.total + ', them ' + c.theirDone + '/' + c.total;
 		}).join(', ')
-		: 'nothing to play';
+		: (held
+			? 'nothing to play - ' + held + ' human challenge(s) available but not enabled; ' +
+			  '__brillChallenge.allowHuman(true) to include them'
+			: 'nothing to play');
 	if (msg !== lastLobbyLog) { lobbyLog(msg + (autoPlay() ? '' : '  (autoplay off)')); lastLobbyLog = msg; }
 	if (!todo.length || !autoPlay()) return;
 
