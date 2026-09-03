@@ -130,6 +130,29 @@ Lobby navigation button: `button.bbo-phx-navigation` with text `Challenges <n>`;
 `Challenge a friend`, `Challenge a stranger`, `Challenge a robot`, `Challenge a star`,
 `Group Challenge`, `ACBL Challenge`, `Challenge Reward - Micro`, `Challenge Reward - Low Stakes`.
 
+## Daylong tournaments - assumed, not captured
+
+The lobby's competitive area lists free daylongs (`BBO Free Daylong Tournament`, and
+`lorserker`'s `Ben & Friends Daily / Just Declare / Defend`). They are the same asynchronous
+product as a challenge, and `ard.php` is very likely their feed - ARD is BBO's
+async-robot-duplicate service and the daylongs *are* that product; the challenge `<t>` rows
+above ride in a `<tlist>` built for it.
+
+`lobby.js` can enter them (allowlist, default `ben & friends`), but **none of the following
+has been observed** - each row is what the driver assumes, and how to check it live:
+
+| unknown | assumption | check |
+|---|---|---|
+| does a daylong appear in the `ard.php` `tlist` at all? | yes, as a `<t>` row *without* the `c_challenge_*` / `c_challenger` fields | `__brillChallenge.tourneys()` after opening the tournament list |
+| which field holds **our** boards played | first present of `c_boards_completed`, `boards_completed`, `boards_played`, `user_boards_played`, `bds_played`, `played`, `completed`; else any numeric field whose name says *completed*/*played*. The name that matched is logged (`... 3/8 from <field>`) | same dump |
+| the nav button to the tournament list | `button.bbo-phx-navigation` whose icon markup mentions `medal`, `trophy` or `tournament`; labels as fallback | `__brillChallenge.tourneyNav()` |
+| the list row | a visible `div.itemClass` containing the tournament title; else the deepest visible element containing it | console line `opening "<title>"` |
+| the entry button | inside `modal-content` / a material dialog **that mentions the tournament title**: one labelled *Play now / Enter / Register / Start / Play*, or the only button there. Several unlabelled buttons -> it logs them and clicks nothing | console line, then `BRILL_DAYLONG_ENTER_LABEL` |
+
+If the dump shows the daylongs are **not** in `ard.php`, the next capture should look for a
+separate call made when the tournament screen opens (`BBOprobe.user.js` records XHR/fetch and
+the WebSocket) - and the harvester, not the driver, is what needs changing.
+
 ## The game WebSocket
 
 `wss://v3proxysl<N>.bridgebase.com/` - the main client protocol, and it is fully readable:

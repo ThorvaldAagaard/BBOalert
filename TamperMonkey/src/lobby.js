@@ -2,6 +2,8 @@
 //
 // The piece BBOalert never had: getting from the lobby into a challenge. Once seated, the
 // vendored observer + PlayWithBrill's hooks take over and play the board.
+// The same driver also enters allowlisted daylong tournaments - see "daylong tournaments"
+// further down, which is the one part of this file not backed by a capture.
 //
 // STATE COMES FROM THE WIRE, NOT THE DOM
 // --------------------------------------
@@ -33,6 +35,13 @@
 //                                                 report only)
 //   localStorage.BRILL_ALLOW_HUMAN = '1'          also play PK challenges against people
 //                                                 (default: robot challenges only)
+//   localStorage.BRILL_DAYLONGS = 'ben & friends, just declare'
+//                                                 comma-separated substrings of the daylong
+//                                                 tournaments to enter, matched against
+//                                                 title and host (default: 'ben & friends';
+//                                                 set it to '' to play no tournaments at all)
+//   localStorage.BRILL_DAYLONG_ENTER_LABEL        text of the button that enters a
+//                                                 tournament, if its panel holds more than one
 //   delete localStorage.BRILL_CHALLENGE_AUTOPLAY  back to report-only
 
 var LOBBY = {
@@ -191,6 +200,138 @@ function robotChallenges() {
 	return out;
 }
 
+// ---- daylong tournaments -------------------------------------------------------
+//
+// The dailies in the lobby's "Free Tournaments" list are the other thing this account can
+// usefully play by itself: 8 or 16 boards against robots, at your own pace, resumable - the
+// same asynchronous shape as a challenge. Once seated, the play engine needs no changes at
+// all; only getting in is new.
+//
+// WHAT IS CAPTURED AND WHAT IS NOT
+// --------------------------------
+// ard.php is very likely the feed for these too - ARD is BBO's async-robot-duplicate
+// service, and the daylongs ARE that product; the challenge rows we already harvest ride in
+// a <tlist> built for it. But no daylong <t> row has actually been captured, so the field
+// names below are candidates rather than observations, and the DOM of the tournament list is
+// unknown. Everything that depends on either therefore SAYS what it matched, and
+// __brillChallenge.tourneys() dumps the raw rows: a wrong guess shows up as a line in the
+// console with the real field names next to it, not as a driver that quietly does nothing.
+// Correcting it should be one edit to DAYLONG_DONE_KEYS or one localStorage override.
+//
+// WHICH ONES - and why this is an allowlist, not "all free tournaments"
+// --------------------------------------------------------------------
+// A daylong is scored against a field of other entrants, so entering one is a different
+// decision from accepting a challenge that was sent to this account. The "Ben & Friends"
+// series is hosted for bots - that is the point of it - so it is the default. BBO's own Free
+// Daylong is a general competitive event and is deliberately NOT included; name it yourself
+// if you want it:
+//   __brillChallenge.daylongs(['ben & friends', 'free daylong'])
+// A pattern matches as a case-insensitive substring of the title OR the host, so 'lorserker'
+// selects that whole series and 'just declare' selects one tournament of it.
+var DAYLONG_DEFAULT = ['ben & friends'];
+
+function daylongPatterns() {
+	var raw = localStorage.getItem('BRILL_DAYLONGS');
+	if (raw === null) return DAYLONG_DEFAULT.slice();
+	return raw.split(',')
+		.map(function (s) { return s.trim().toLowerCase(); })
+		.filter(function (s) { return s.length > 0; });
+}
+
+// A challenge row carries the c_challenge_* / c_challenger fields; anything else in the
+// tlist is a tournament. Asked positively ("does this look like a challenge?") rather than
+// by style name, so a tournament style we have never seen still classifies correctly.
+function isChallengeRow(d) {
+	return !!(d.c_challenge_style || d.c_challenger || d.c_challengee);
+}
+
+function matchesDaylong(d) {
+	var pats = daylongPatterns();
+	var hay = ((d.title || '') + ' ' + (d.host || '')).toLowerCase();
+	for (var i = 0; i < pats.length; i++) {
+		if (hay.indexOf(pats[i]) !== -1) return pats[i];
+	}
+	return null;
+}
+
+// Candidate names for "boards WE have played", best first; the loop after them is the safety
+// net - any numeric field whose name talks about boards completed or played will do. The
+// name that matched is carried in .field and logged, so the guess is visible.
+var DAYLONG_DONE_KEYS = ['c_boards_completed', 'boards_completed', 'boards_played',
+	'user_boards_played', 'bds_played', 'played', 'completed'];
+
+function daylongProgress(d) {
+	var total = parseInt(d.boards || '0', 10);
+	for (var i = 0; i < DAYLONG_DONE_KEYS.length; i++) {
+		var k = DAYLONG_DONE_KEYS[i];
+		if (d[k] !== undefined && /^\d+$/.test(d[k])) {
+			return { done: parseInt(d[k], 10), total: total, field: k };
+		}
+	}
+	for (var k2 in d) {
+		if (/(completed|played)/i.test(k2) && /^\d+$/.test(d[k2])) {
+			return { done: parseInt(d[k2], 10), total: total, field: k2 };
+		}
+	}
+	return { done: null, total: total, field: null };   // unknown - enterDaylong cools down instead
+}
+
+// Returns {tid, title, ...} for a tournament worth entering, or null.
+function playableDaylong(d) {
+	if (!d.tid || isChallengeRow(d)) return null;
+
+	// Free only, whatever the title says. Daylongs also come in paid flavours, and a driver
+	// that spends BB$ because a substring matched is a bug you find on the statement.
+	if (parseFloat(d.fee || '0') > 0) return null;
+	if (d.state && d.state !== 'RUNNING') return null;
+
+	var pat = matchesDaylong(d);
+	if (!pat) return null;
+
+	var p = daylongProgress(d);
+	if (p.done !== null && p.total && p.done >= p.total) return null;
+
+	return {
+		tid: d.tid, title: (d.title || '(untitled)'), host: (d.host || ''),
+		done: p.done, total: p.total, field: p.field, pattern: pat, daylong: true
+	};
+}
+
+function daylongTodo() {
+	var out = [];
+	for (var tid in tlist) {
+		var p = playableDaylong(tlist[tid]);
+		if (!p) continue;
+		if (lobbyCooldown[tid] && Date.now() < lobbyCooldown[tid]) continue;
+		out.push(p);
+	}
+	return out;
+}
+
+// Why is a row that DID match the allowlist not being played? Only used for the idle
+// message, but it is the difference between "none matching" - which would be a lie if the
+// reason was the state field or a fee - and a line you can act on.
+function daylongSkipReason(d) {
+	if (!d.tid || isChallengeRow(d) || !matchesDaylong(d)) return null;
+	if (parseFloat(d.fee || '0') > 0) return 'fee ' + d.fee;
+	if (d.state && d.state !== 'RUNNING') return 'state=' + d.state;
+	var p = daylongProgress(d);
+	if (p.done !== null && p.total && p.done >= p.total) {
+		return 'finished ' + p.done + '/' + p.total;
+	}
+	return null;
+}
+
+// Every tournament row we know about, matched or not: the answer to "why is it not playing
+// the daily I can see on screen?".
+function tourneyRows() {
+	var out = [];
+	for (var tid in tlist) {
+		if (!isChallengeRow(tlist[tid])) out.push(tlist[tid]);
+	}
+	return out;
+}
+
 // ---- screens -------------------------------------------------------------------
 
 function onChallengeList() { return $('challenge-list-screen', PWD).length > 0; }
@@ -322,6 +463,125 @@ function playNowButton() {
 	return $('challenge-details-panel button:visible', PWD).filter(function () {
 		return /play now/i.test($(this).text());
 	}).first();
+}
+
+
+// ---- tournament screen ---------------------------------------------------------
+//
+// None of this is verified against a capture the way the challenge chain is (see
+// BBO-lobby-protocol.md). It is written to fail LOUDLY instead: each step logs what it
+// matched or says plainly that it found nothing, and the last two steps refuse to click
+// anything ambiguous.
+
+// The lobby's competitive area, where the "Free Tournaments" list lives. Same language trap
+// as the Challenges button and the same ordered fix - override, icon, then labels.
+var DAYLONG_ICONS = ['medal', 'trophy', 'tournament'];
+var DAYLONG_LABELS = ['Competitive', 'Tournaments', 'Turneringer', 'Turniere', 'Tournois',
+	'Torneos', 'Tornei', 'Toernooien', 'Turnieje'];
+
+function daylongNavButton() {
+	var buttons = $('button.bbo-phx-navigation', PWD);
+
+	var override = localStorage.getItem('BRILL_TOURNAMENTS_LABEL');
+	if (override) {
+		var byOverride = buttons.filter(function () {
+			return $(this).text().indexOf(override) !== -1;
+		}).first();
+		if (byOverride.length) return byOverride;
+	}
+
+	var byIcon = buttons.filter(function () {
+		var host = $(this).closest('phoenix-regular-navigation-button')[0] || this;
+		try {
+			for (var i = 0; i < DAYLONG_ICONS.length; i++) {
+				if ((host.innerHTML || '').indexOf(DAYLONG_ICONS[i]) !== -1) return true;
+			}
+		} catch (e) { }
+		return false;
+	}).first();
+	if (byIcon.length) return byIcon;
+
+	return buttons.filter(function () {
+		var t = $(this).text();
+		for (var i = 0; i < DAYLONG_LABELS.length; i++) {
+			if (t.indexOf(DAYLONG_LABELS[i]) !== -1) return true;
+		}
+		return false;
+	}).first();
+}
+
+// Find the on-screen row for a daylong.
+//
+// The challenge list renders rows as <challenge-list-item><div.itemClass>, and the
+// tournament list looks the same in the lobby (title line, then a subtitle with the board
+// count and scoring) - but its tag name has not been captured, so match on the TITLE TEXT
+// rather than on an element name. Titles are proper nouns ("Ben & Friends Daily -
+// 2026-09-03"), which makes this language-independent as a bonus.
+//
+// The wildcard fallback is deliberately last and only runs when a daily is actually due to
+// be entered, not on every tick: it is the expensive branch, and `.last()` is what keeps it
+// honest - ancestors precede their descendants in document order, so the last element still
+// containing the whole title is the deepest one. Without that this matches <body>.
+function daylongRow(target) {
+	var want = String(target.title || '').replace(/\s+/g, ' ').trim().toLowerCase();
+	if (!want) return $();
+
+	var contains = function () {
+		return $(this).text().replace(/\s+/g, ' ').trim().toLowerCase().indexOf(want) !== -1;
+	};
+
+	var rows = $('div.itemClass:visible', PWD).filter(contains);
+	if (rows.length) return rows.first();
+
+	var all = $('*:visible', PWD).filter(contains);
+	if (!all.length) return $();
+	var leaf = all.last();
+	var clickable = leaf.closest('div.itemClass, [role="button"], button, li').first();
+	return clickable.length ? clickable : leaf;
+}
+
+// The panel a row click opens. The challenge flow puts its details in <modal-content>
+// inside Angular Material's overlay, so accept that plus a plain material dialog. Nothing
+// below clicks anything unless one of these is actually on screen: a driver that hunts for
+// buttons across the whole page eventually finds one it should not press.
+function daylongPanel() {
+	return $('modal-content:visible, mat-dialog-container:visible, ' +
+		'.mat-dialog-container:visible, .cdk-overlay-pane:visible', PWD).first();
+}
+
+// The button that actually enters the tournament, inside that panel.
+//
+// This refuses to guess: a single visible button is unambiguous and gets clicked, several
+// are logged and left alone until BRILL_DAYLONG_ENTER_LABEL names the right one. Taking
+// "the first button" of an unseen modal is how a driver ends up pressing Cancel forever -
+// or something that costs BB$.
+var ENTER_LABELS = ['play now', 'enter', 'register', 'start', 'play'];
+
+function daylongEnterButton(panel) {
+	var btns = $('.buttonBarClass button:visible', panel);
+	if (!btns.length) btns = $('button:visible', panel);
+	if (!btns.length) return null;
+
+	var override = localStorage.getItem('BRILL_DAYLONG_ENTER_LABEL');
+	var labels = override ? [override.toLowerCase()] : ENTER_LABELS;
+	var byText = btns.filter(function () {
+		var t = $(this).text().replace(/\s+/g, ' ').trim().toLowerCase();
+		for (var i = 0; i < labels.length; i++) {
+			if (t.indexOf(labels[i]) !== -1) return true;
+		}
+		return false;
+	}).first();
+	if (byText.length) {
+		return { el: byText, how: 'label "' + byText.text().replace(/\s+/g, ' ').trim() + '"' };
+	}
+	if (btns.length === 1) return { el: btns.first(), how: 'the only button in the panel' };
+
+	return {
+		el: null,
+		choices: btns.map(function () {
+			return $(this).text().replace(/\s+/g, ' ').trim();
+		}).get()
+	};
 }
 
 // ---- the loop ------------------------------------------------------------------
@@ -476,20 +736,65 @@ function lobbyTick() {
 	}
 
 	var todo = robotChallenges();
-	var held = todo.length ? 0 : humanHeldBack();
-	var msg = todo.length
-		? todo.map(function (c) {
+	var dailies = daylongTodo();
+
+	// One line, and it has to answer "why is nothing happening?" without a follow-up
+	// question: what is playable, what the human opt-in held back, and what the tournament
+	// allowlist did or did not match.
+	var parts = [];
+	if (todo.length) {
+		parts.push(todo.map(function (c) {
 			return (c.robot ? '' : 'vs ' + c.opponent + ' ') + c.tid.slice(0, 8) +
 				' us ' + c.done + '/' + c.total + ', them ' + c.theirDone + '/' + c.total;
-		}).join(', ')
-		: (held
-			? 'nothing to play - ' + held + ' human challenge(s) available but not enabled; ' +
-			  '__brillChallenge.allowHuman(true) to include them'
-			: 'nothing to play');
+		}).join(', '));
+	}
+	if (dailies.length) {
+		parts.push('dailies: ' + dailies.map(function (c) {
+			return '"' + c.title + '"' +
+				(c.done === null ? ' (progress unknown)' : ' ' + c.done + '/' + c.total);
+		}).join(', '));
+	}
+	if (!parts.length) {
+		var held = humanHeldBack();
+		var rows = tourneyRows();
+		var tourneys = rows.length;
+		var skipped = [];
+		for (var i = 0; i < rows.length; i++) {
+			var reason = daylongSkipReason(rows[i]);
+			// A daily we entered a moment ago is on cooldown, not missing: without this the
+			// line would read "nothing to play" while it is in fact waiting on purpose.
+			if (!reason && lobbyCooldown[rows[i].tid] && Date.now() < lobbyCooldown[rows[i].tid] &&
+				matchesDaylong(rows[i])) reason = 'cooling down';
+			if (reason) skipped.push('"' + (rows[i].title || rows[i].tid) + '" (' + reason + ')');
+		}
+		var why = [];
+		if (held) {
+			why.push(held + ' human challenge(s) available but not enabled; ' +
+				'__brillChallenge.allowHuman(true) to include them');
+		}
+		if (!tourneys && daylongPatterns().length) {
+			why.push('no tournament rows in the list yet - the dailies may come from a call ' +
+				'the page only makes on the tournament screen; open it once and check ' +
+				'__brillChallenge.tourneys()');
+		}
+		if (skipped.length) why.push('allowlisted but skipped: ' + skipped.join(', '));
+		if (tourneys && !skipped.length) {
+			why.push(tourneys + ' tournament(s) listed, none matching ' +
+				JSON.stringify(daylongPatterns()) + '; __brillChallenge.tourneys() to see them');
+		}
+		parts.push('nothing to play' + (why.length ? ' - ' + why.join('; ') : ''));
+	}
+	var msg = parts.join(' | ');
 	if (msg !== lastLobbyLog) { lobbyLog(msg + (autoPlay() ? '' : '  (autoplay off)')); lastLobbyLog = msg; }
-	if (!todo.length || !autoPlay()) return;
+	if (!autoPlay()) return;
 
-	var target = todo[0];
+	// Challenges first: someone (or some robot) is waiting on the other side of one, while a
+	// daylong is only waiting on the clock.
+	if (todo.length) { enterChallenge(todo[0]); return; }
+	if (dailies.length) { enterDaylong(dailies[0]); return; }
+}
+
+function enterChallenge(target) {
 	lobbyBusy = true;
 
 	// If the details modal is already up, finish the job.
@@ -545,12 +850,106 @@ function lobbyTick() {
 	setTimeout(function () { lobbyBusy = false; }, LOBBY.settle);
 }
 
+// Entering a daily is the same three steps as a challenge - reach the list, click the row,
+// press the button in the panel - but with an unverified selector at each one, so every step
+// says what it did and anything unclear ends in a cooldown rather than a retry loop. The
+// tournament is still there in a minute; a driver clicking blindly at 2Hz is not recoverable.
+function enterDaylong(target) {
+	lobbyBusy = true;
+	var label = '"' + target.title + '"' + (target.host ? ' by ' + target.host : '');
+
+	var panel = daylongPanel();
+	if (panel.length) {
+		// ...but only when the open panel is actually about THIS tournament. Every modal on
+		// the site matches the selectors above - an announcement, a leftover challenge panel -
+		// and pressing "Play" in one of those is not what was asked for. Naming the entry
+		// button explicitly counts as saying you know which panel it is.
+		var want = String(target.title || '').replace(/s+/g, ' ').trim().toLowerCase();
+		var mine = panel.text().replace(/s+/g, ' ').toLowerCase().indexOf(want) !== -1 ||
+			!!localStorage.getItem('BRILL_DAYLONG_ENTER_LABEL');
+		if (!mine) {
+			lobbyLog('a panel is open that does not mention ' + label +
+				' - clicking nothing in it; trying again in a minute');
+			lobbyCooldown[target.tid] = Date.now() + LOBBY.cooldown;
+			lobbyBusy = false;
+			return;
+		}
+
+		var enter = daylongEnterButton(panel);
+		if (enter && enter.el) {
+			lobbyLog('entering ' + label + ' - clicking ' + enter.how);
+			enter.el[0].click();
+			// One attempt per minute, whatever happens next. Progress may be unreadable
+			// (see daylongProgress), so a silently failed entry would otherwise loop; and
+			// if it worked we are at a table, where the tick returns early anyway.
+			lobbyCooldown[target.tid] = Date.now() + LOBBY.cooldown;
+			setTimeout(function () { lobbyBusy = false; }, LOBBY.settle * 3);
+			return;
+		}
+		if (enter && enter.choices) {
+			lobbyLog('the open panel has ' + enter.choices.length + ' buttons and none reads ' +
+				'like an entry button: ' + JSON.stringify(enter.choices) +
+				' - set localStorage.BRILL_DAYLONG_ENTER_LABEL to the right one');
+			lobbyCooldown[target.tid] = Date.now() + LOBBY.cooldown;
+			lobbyBusy = false;
+			return;
+		}
+	}
+
+	var row = daylongRow(target);
+	if (row.length) {
+		lobbyLog('opening ' + label +
+			(target.field ? ' (' + target.done + '/' + target.total + ' from ' + target.field + ')'
+				: ' (progress unknown)'));
+		row[0].click();
+		setTimeout(function () { lobbyBusy = false; }, LOBBY.settle);
+		return;
+	}
+
+	var nav = daylongNavButton();
+	if (nav.length) {
+		lobbyLog('looking for ' + label + ' - opening "' +
+			nav.text().replace(/\s+/g, ' ').trim() + '"');
+		nav[0].click();
+		setTimeout(function () { lobbyBusy = false; }, LOBBY.settle);
+		return;
+	}
+
+	lobbyLog('cannot reach ' + label + ': no row for it on screen and no tournament nav ' +
+		'button matched (icons ' + JSON.stringify(DAYLONG_ICONS) + '). Open the tournament ' +
+		'list by hand once, or set localStorage.BRILL_TOURNAMENTS_LABEL - backing off');
+	lobbyCooldown[target.tid] = Date.now() + LOBBY.cooldown;
+	lobbyBusy = false;
+}
+
+
 setInterval(lobbyTick, LOBBY.poll);
 
 // Console handle, mirroring CuebidsWithBrill's __brill.
 window.__brillChallenge = {
 	tlist: function () { return tlist; },
 	todo: function () { return robotChallenges(); },
+
+	// The daylong side of the same picture: what is enterable now, every tournament row we
+	// have seen (matched or not - this is the dump to read when a daily you can see on
+	// screen is not being played), and the allowlist itself.
+	dailies: function () { return daylongTodo(); },
+	tourneys: function () { return tourneyRows(); },
+	daylongs: function (list) {
+		if (list === undefined) return daylongPatterns();
+		if (list === 'default') localStorage.removeItem('BRILL_DAYLONGS');
+		else if (!list) localStorage.setItem('BRILL_DAYLONGS', '');
+		else localStorage.setItem('BRILL_DAYLONGS',
+			(Object.prototype.toString.call(list) === '[object Array]' ? list : [list]).join(','));
+		return daylongPatterns();
+	},
+
+	// Which button did the tournament matcher find? null is the first thing to check when
+	// the driver says it cannot reach the tournament list.
+	tourneyNav: function () {
+		var b = daylongNavButton();
+		return b.length ? b.text().replace(/\s+/g, ' ').trim() : null;
+	},
 
 	// Which nav button did the language-independent matcher find? Returns null if none -
 	// the first thing to check if the driver reports "nothing to play" on a non-English BBO.
