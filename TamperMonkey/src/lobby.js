@@ -82,12 +82,42 @@ function harvestTlist(text) {
 		while ((m = re.exec(rows[i]))) d[m[1]] = m[2];
 		if (d.tid) tlist[d.tid] = d;
 	}
-	if (rows.length) lobbyLog('tlist: ' + rows.length + ' challenges');
+	if (rows.length) lobbyLog('tlist: ' + rows.length + ' rows');
 	return rows.length;
 }
 
 // Hook both transports. The BBO client used XHR for ard.php when this was captured, but an
 // app that switches to fetch later would silently stop feeding us - so watch both.
+// Where a <tlist> came from. The challenge list is ard.php, but the daylong tournaments
+// were NOT in it when this was first run live, so the URL that does carry them is exactly
+// the fact this file is missing - announce each new source once, and it stops being a
+// mystery.
+var tlistSources = {};
+
+function harvestFrom(url, text) {
+	if (!text || text.indexOf('<tlist') === -1) return;
+	var key = String(url).split('?')[0];
+	if (!tlistSources[key]) {
+		tlistSources[key] = true;
+		if (key.indexOf('ard.php') === -1) {
+			lobbyLog('tlist also served by ' + key + ' - worth recording in BBO-lobby-protocol.md');
+		}
+	}
+	harvestTlist(text);
+}
+
+// Hook both transports, and do NOT filter on ard.php.
+//
+// The first version watched that one URL, which is fine for challenges and blind to
+// everything else: on the first live run the tournament screen produced no rows at all, and
+// there is no way to tell from inside the script whether the daylongs travel on a different
+// call or simply were not fetched. Sniffing every text response for the literal "<tlist"
+// answers that by itself - harvestTlist bails on the first indexOf when it is absent, so the
+// cost is one string scan per response.
+//
+// The guards matter: reading .responseText throws when responseType is json/blob/arraybuffer,
+// and cloning every fetch response to read it as text would drag binary payloads through
+// memory for nothing.
 (function hookTransports() {
 	var NativeXHR = window.XMLHttpRequest;
 	if (NativeXHR) {
@@ -99,11 +129,13 @@ function harvestTlist(text) {
 		};
 		NativeXHR.prototype.send = function () {
 			var xhr = this;
-			if (String(xhr.__brillUrl || '').indexOf('ard.php') !== -1) {
-				xhr.addEventListener('load', function () {
-					try { harvestTlist(xhr.responseText); } catch (e) { lobbyLog('harvest', e); }
-				});
-			}
+			xhr.addEventListener('load', function () {
+				try {
+					var rt = xhr.responseType;
+					if (rt && rt !== 'text') return;
+					harvestFrom(xhr.__brillUrl || '(xhr)', xhr.responseText);
+				} catch (e) { lobbyLog('harvest', e); }
+			});
 			return send.apply(this, arguments);
 		};
 	}
@@ -112,11 +144,15 @@ function harvestTlist(text) {
 		window.fetch = function (input) {
 			var url = typeof input === 'string' ? input : (input && input.url) || '';
 			var p = nativeFetch.apply(this, arguments);
-			if (url.indexOf('ard.php') !== -1) {
-				p.then(function (r) {
-					r.clone().text().then(harvestTlist).catch(function () { });
-				}).catch(function () { });
-			}
+			p.then(function (r) {
+				var ct = '';
+				try { ct = (r.headers.get('content-type') || '').toLowerCase(); } catch (e) { }
+				var textish = !ct || ct.indexOf('xml') !== -1 || ct.indexOf('text') !== -1 ||
+					ct.indexOf('html') !== -1;
+				if (!textish) return;
+				r.clone().text().then(function (body) { harvestFrom(url, body); })
+					.catch(function () { });
+			}).catch(function () { });
 			return p;
 		};
 	}
@@ -466,6 +502,106 @@ function playNowButton() {
 }
 
 
+
+// ---- daylongs on screen --------------------------------------------------------
+//
+// The first live run settled where these live: ard.php carries challenges only, and
+// __brillChallenge.tourneys() stayed empty with the tournament list open. The dailies are
+// simply not in the feed we hook - so for them the DOM is the source of truth, and the tlist
+// path above stays only in case BBO ever starts serving them there.
+//
+// The screen is unambiguous. One row per tournament, columns Title / Entries / Starts /
+// Entry fee:
+//
+//   Lorserker | Ben & Friends Daily - 2026-09-04 - 8 boards, Ind., MPs | 280 | Play now | Registered
+//   BBO       | The 7 Tricks Challenge - Daily (Beginner) - Sep 04 ... | 167 | Play now | 0.10 BB$
+//   BBO       | 10 min Free Robot Sprint ...                           | Full | 1 min   | Free
+//
+// which gives us the row's own entry link, the fee, and whether the row is even enterable -
+// no modal in between. Two guards come straight off that layout: a row priced in BB$ is
+// never clicked whatever the allowlist says, and a Full one is skipped.
+var PLAY_NOW_LABELS = ['play now'];
+var DOM_SCAN_MS = 4000;          // the scan walks every visible element; twice a tick is plenty
+var domScan = { at: 0, rows: [] };
+
+function norm(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); }
+
+// Find the "Play now" links, then climb from each one to the row it belongs to. Climbing
+// beats guessing a row selector: we have never seen this screen's markup, but "the nearest
+// ancestor that also contains a title I want" is true of any table-ish layout. Bounded on
+// both sides - six levels up, and a text length that still looks like one row rather than
+// the whole table.
+function scanDaylongRows() {
+	var pats = daylongPatterns();
+	if (!pats.length) return [];
+
+	var override = localStorage.getItem('BRILL_PLAY_NOW_LABEL');
+	var labels = override ? [override.toLowerCase()] : PLAY_NOW_LABELS;
+
+	var out = [], seen = {};
+	$('*:visible', PWD).each(function () {
+		if (this.children && this.children.length) return;       // the label is a leaf
+		var label = norm($(this).text()).toLowerCase();
+		if (labels.indexOf(label) === -1) return;
+
+		var node = $(this), row = null, rowText = '', pattern = null;
+		for (var i = 0; i < 6; i++) {
+			node = node.parent();
+			if (!node.length) break;
+			var text = norm(node.text());
+			if (!text || text.length > 400) break;
+			var lower = text.toLowerCase();
+
+			// Stop before the table. An ancestor holding a SECOND entry link is no longer one
+			// row, and matching there would bind this "Play now" to a neighbouring
+			// tournament's title - i.e. click the wrong daily. Length alone would not catch
+			// it: a three-row table still fits in 400 characters.
+			if (lower.split(label).length - 1 > 1) break;
+
+			for (var j = 0; j < pats.length; j++) {
+				if (lower.indexOf(pats[j]) !== -1) { pattern = pats[j]; break; }
+			}
+			if (pattern) { row = node; rowText = text; break; }
+		}
+		if (!row) return;
+
+		if (/BB\$/.test(rowText)) return;               // priced in BB$ - never, allowlist or not
+		if (/\bFull\b/i.test(rowText)) return;
+
+		// The title is everything before the bullet that opens the "8 boards, Ind., MPs"
+		// blurb; it carries the date, so a new day is correctly a new key.
+		var title = norm(rowText.split('\u2022')[0]) || rowText.slice(0, 60);
+		var tid = 'dom:' + title.toLowerCase();
+		if (seen[tid]) return;
+		seen[tid] = true;
+
+		out.push({
+			tid: tid, title: title, host: '', pattern: pattern, dom: true,
+			done: null, total: 0, field: null, playNow: $(this)
+		});
+	});
+	return out;
+}
+
+function daylongDomTodo() {
+	if (Date.now() - domScan.at >= DOM_SCAN_MS) {
+		domScan = { at: Date.now(), rows: [] };
+		try { domScan.rows = scanDaylongRows(); } catch (e) { lobbyLog('daylong scan', e); }
+	}
+	return domScan.rows.filter(function (r) {
+		return !(lobbyCooldown[r.tid] && Date.now() < lobbyCooldown[r.tid]);
+	});
+}
+
+// A finished daily still shows "Play now" - clicking it reopens the results rather than
+// seating us. Nothing in the row says "you have played all 8", so count instead: entries
+// that never reached a table. Three of those and the tournament is done for the next hour,
+// which is what stops a completed daily from being re-entered every minute all day.
+var lastDaylongTid = null;
+var daylongMisses = {};
+var DAYLONG_MAX_MISSES = 3;
+var DAYLONG_DONE_COOLDOWN = 3600000;
+
 // ---- tournament screen ---------------------------------------------------------
 //
 // None of this is verified against a capture the way the challenge chain is (see
@@ -713,6 +849,8 @@ function lobbyTick() {
 		// PlayWithBrill's hooks own the table from here; the only thing left to do is put
 		// the History pane up so the boards played are visible while it works.
 		showHistoryPane();
+		// We got in, so the last daily clicked was not a finished one.
+		if (lastDaylongTid) { daylongMisses[lastDaylongTid] = 0; lastDaylongTid = null; }
 		return;
 	}
 	historyPaneShown = false;          // back in the lobby - arm it for the next match
@@ -736,7 +874,7 @@ function lobbyTick() {
 	}
 
 	var todo = robotChallenges();
-	var dailies = daylongTodo();
+	var dailies = daylongTodo().concat(daylongDomTodo());
 
 	// One line, and it has to answer "why is nothing happening?" without a follow-up
 	// question: what is playable, what the human opt-in held back, and what the tournament
@@ -773,11 +911,19 @@ function lobbyTick() {
 				'__brillChallenge.allowHuman(true) to include them');
 		}
 		if (!tourneys && daylongPatterns().length) {
-			why.push('no tournament rows in the list yet - the dailies may come from a call ' +
-				'the page only makes on the tournament screen; open it once and check ' +
-				'__brillChallenge.tourneys()');
+			why.push('no tournament rows seen yet - open the tournament list once so the page ' +
+				'fetches it (any response carrying a <tlist> is harvested, whatever the URL), ' +
+				'then check __brillChallenge.tourneys() and .sources()');
 		}
 		if (skipped.length) why.push('allowlisted but skipped: ' + skipped.join(', '));
+		var cooling = domScan.rows.filter(function (r) {
+			return lobbyCooldown[r.tid] && Date.now() < lobbyCooldown[r.tid];
+		});
+		if (cooling.length) {
+			why.push('on screen but cooling down: ' + cooling.map(function (r) {
+				return '"' + r.title + '"';
+			}).join(', '));
+		}
 		if (tourneys && !skipped.length) {
 			why.push(tourneys + ' tournament(s) listed, none matching ' +
 				JSON.stringify(daylongPatterns()) + '; __brillChallenge.tourneys() to see them');
@@ -854,9 +1000,49 @@ function enterChallenge(target) {
 // press the button in the panel - but with an unverified selector at each one, so every step
 // says what it did and anything unclear ends in a cooldown rather than a retry loop. The
 // tournament is still there in a minute; a driver clicking blindly at 2Hz is not recoverable.
+// Enter a daily straight from its row on screen.
+//
+// The row carries its own "Play now", so there is no nav step and no modal: the whole
+// three-click chain below collapses to one click. What it does need is the finished-daily
+// guard - see daylongMisses.
+function enterDaylongRow(target, label) {
+	var misses = daylongMisses[target.tid] || 0;
+	if (misses >= DAYLONG_MAX_MISSES) {
+		lobbyLog(label + ' looks finished - ' + misses + ' entries never reached a table; ' +
+			'leaving it for an hour');
+		lobbyCooldown[target.tid] = Date.now() + DAYLONG_DONE_COOLDOWN;
+		daylongMisses[target.tid] = 0;
+		lobbyBusy = false;
+		return;
+	}
+
+	var link = target.playNow;
+	if (!link || !link.length || !PWD.body.contains(link[0])) {
+		// The list re-rendered between the scan and the click. Nothing is wrong - drop the
+		// stale scan and pick the row up again on the next tick.
+		domScan.at = 0;
+		lobbyBusy = false;
+		return;
+	}
+
+	lobbyLog('entering ' + label + ' - clicking its "Play now"' +
+		(misses ? ' (attempt ' + (misses + 1) + ')' : ''));
+	daylongMisses[target.tid] = misses + 1;
+	lastDaylongTid = target.tid;
+	(link.closest('button, a, [role="button"]')[0] || link[0]).click();
+	domScan.at = 0;
+	lobbyCooldown[target.tid] = Date.now() + LOBBY.cooldown;
+	setTimeout(function () { lobbyBusy = false; }, LOBBY.settle * 3);
+}
+
 function enterDaylong(target) {
 	lobbyBusy = true;
 	var label = '"' + target.title + '"' + (target.host ? ' by ' + target.host : '');
+
+	// A row we found on screen carries its own entry link, so click that and skip the
+	// nav/row/modal chain below - which stays for the (still uncaptured) case of a daily
+	// arriving in the tlist instead.
+	if (target.dom) { enterDaylongRow(target, label); return; }
 
 	var panel = daylongPanel();
 	if (panel.length) {
@@ -864,8 +1050,8 @@ function enterDaylong(target) {
 		// the site matches the selectors above - an announcement, a leftover challenge panel -
 		// and pressing "Play" in one of those is not what was asked for. Naming the entry
 		// button explicitly counts as saying you know which panel it is.
-		var want = String(target.title || '').replace(/s+/g, ' ').trim().toLowerCase();
-		var mine = panel.text().replace(/s+/g, ' ').toLowerCase().indexOf(want) !== -1 ||
+		var want = (target.pattern || String(target.title || '')).toLowerCase();
+		var mine = panel.text().replace(/\s+/g, ' ').toLowerCase().indexOf(want) !== -1 ||
 			!!localStorage.getItem('BRILL_DAYLONG_ENTER_LABEL');
 		if (!mine) {
 			lobbyLog('a panel is open that does not mention ' + label +
@@ -935,6 +1121,14 @@ window.__brillChallenge = {
 	// screen is not being played), and the allowlist itself.
 	dailies: function () { return daylongTodo(); },
 	tourneys: function () { return tourneyRows(); },
+	sources: function () { return Object.keys(tlistSources); },
+
+	// The dailies as the DOM scanner currently sees them, allowlist applied. Empty while a
+	// screen other than the tournament list is up - this reads the page, not a feed.
+	onScreen: function () {
+		domScan.at = 0;
+		return scanDaylongRows().map(function (r) { return r.title; });
+	},
 	daylongs: function (list) {
 		if (list === undefined) return daylongPatterns();
 		if (list === 'default') localStorage.removeItem('BRILL_DAYLONGS');
@@ -946,6 +1140,15 @@ window.__brillChallenge = {
 
 	// Which button did the tournament matcher find? null is the first thing to check when
 	// the driver says it cannot reach the tournament list.
+	// Navigate to the tournament list. Read-only in the same sense as openList(): it moves
+	// the screen, it enters nothing. The driver never calls this by itself - the nav button
+	// is a guess, and moving someone's screen on a guess is worse than doing nothing.
+	openTourneys: function () {
+		var b = daylongNavButton();
+		if (!b.length) return 'tournament nav button NOT FOUND';
+		b[0].click();
+		return 'clicked: ' + norm(b.text());
+	},
 	tourneyNav: function () {
 		var b = daylongNavButton();
 		return b.length ? b.text().replace(/\s+/g, ' ').trim() : null;

@@ -78,10 +78,13 @@ entering, e.g. `entering HUMAN challenge vs veronel 0224e851`. See `BBO-lobby-pr
 
 ### Daylong tournaments ("the dailies")
 
-The free daylongs in the lobby's competitive area are the same asynchronous shape as a
-challenge - 8 or 16 boards against robots, at your own pace, resumable - so once seated the
-play engine is unchanged. Which ones the driver enters is an **allowlist**, matched as a
-case-insensitive substring of the tournament's title *or* host:
+The free daylongs are the same asynchronous shape as a challenge - 8 or 16 boards against
+robots, at your own pace, resumable - so once seated the play engine is unchanged.
+
+They are **not** in the `ard.php` feed (verified live: `tourneys()` stays empty with the list
+open), so the driver reads the tournament screen itself: it finds each row's own `Play now`
+link, climbs to the row, and clicks. Which rows it may click is an allowlist, matched as a
+case-insensitive substring of the row text - title *and* host badge:
 
 ```js
 __brillChallenge.daylongs()                              // current list
@@ -89,29 +92,33 @@ __brillChallenge.daylongs(['ben & friends'])             // the default
 __brillChallenge.daylongs(['lorserker', 'free daylong']) // by host, plus BBO's own
 __brillChallenge.daylongs(false)                         // no tournaments at all
 __brillChallenge.daylongs('default')                     // back to the default
-__brillChallenge.dailies()                               // what it would enter right now
-__brillChallenge.tourneys()                              // every tournament row seen, raw
+__brillChallenge.onScreen()                              // rows it can see right now
+__brillChallenge.openTourneys()                          // click the tournament nav button
 ```
 
 `ben & friends` is the default because that series is hosted for bots - that is the point of
-it. BBO's own **Free Daylong Tournament** is a general competitive event scored against a
-human field, so it is deliberately not included until you name it yourself. Tournaments with
-a `fee` are never entered, whatever the allowlist says.
+it. BBO's own Free Daylong is a general competitive event scored against a human field, so it
+is not included until you name it. Two hard guards ignore the allowlist entirely: a row
+priced in **BB$** is never clicked, and neither is one marked **Full**.
 
-Unlike the challenge chain, this path is **not verified against a capture**: no daylong `<t>`
-row and no tournament-screen DOM have been recorded yet (see `BBO-lobby-protocol.md` for the
-list of assumptions). It is therefore written to fail loudly rather than silently - every
-step logs what it matched, an entry panel with several buttons is reported and left alone
-rather than clicked, and anything unclear ends in a 60s cooldown instead of a retry loop. If
-the first live run does not get in, the console line plus `__brillChallenge.tourneys()` says
-what to correct:
+**It only sees the rows while the tournament list is on screen.** Nothing navigates there by
+itself - the nav button has not been captured and moving the screen around on a guess is
+worse than doing nothing. Leave BBO on that list (or call `openTourneys()`), turn autoplay
+on, and it works from there. Challenges take priority when both are playable.
+
+A finished daily still shows `Play now` and nothing in the row says "8 of 8 played", so the
+stop condition is behavioural: three entries that never reach a table and the tournament is
+left alone for an hour, reset the moment one does seat us.
+
+If a row is not being picked up, `__brillChallenge.onScreen()` says what the scanner matches,
+and the idle log line says why it is being skipped:
 
 ```js
-localStorage.BRILL_DAYLONGS            = 'ben & friends, free daylong'
-localStorage.BRILL_TOURNAMENTS_LABEL   = 'Turneringer'   // the tournament nav button
-localStorage.BRILL_DAYLONG_ENTER_LABEL = 'Register'      // the entry button in the panel
-__brillChallenge.tourneyNav()                            // what the nav matcher finds, or null
+localStorage.BRILL_DAYLONGS          = 'ben & friends, free daylong'
+localStorage.BRILL_PLAY_NOW_LABEL    = 'Spil nu'        // if the UI is not English
+localStorage.BRILL_TOURNAMENTS_LABEL = 'Turneringer'    // the nav button, for openTourneys()
 ```
+
 ### Browser support
 
 Verified on **Firefox** (full: lobby entry, bidding and card play) and on **real Chrome 152**

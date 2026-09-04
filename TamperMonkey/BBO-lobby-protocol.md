@@ -130,28 +130,47 @@ Lobby navigation button: `button.bbo-phx-navigation` with text `Challenges <n>`;
 `Challenge a friend`, `Challenge a stranger`, `Challenge a robot`, `Challenge a star`,
 `Group Challenge`, `ACBL Challenge`, `Challenge Reward - Micro`, `Challenge Reward - Low Stakes`.
 
-## Daylong tournaments - assumed, not captured
+## Daylong tournaments - not in the feed, read from the screen
 
-The lobby's competitive area lists free daylongs (`BBO Free Daylong Tournament`, and
-`lorserker`'s `Ben & Friends Daily / Just Declare / Defend`). They are the same asynchronous
-product as a challenge, and `ard.php` is very likely their feed - ARD is BBO's
-async-robot-duplicate service and the daylongs *are* that product; the challenge `<t>` rows
-above ride in a `<tlist>` built for it.
+The lobby's competitive area lists free daylongs. Captured live 2026-09-04, English UI:
 
-`lobby.js` can enter them (allowlist, default `ben & friends`), but **none of the following
-has been observed** - each row is what the driver assumes, and how to check it live:
+```
+Title                                                            | Entries | Starts   | Entry fee
+BBO       Free Just Declare Daylong (MP) - 2026-09-04 - 8 boards..| 17262   | Play now | Free
+BBO       The 7 Tricks Challenge - Daily (Beginner) - Sep 04 ....| 167     | Play now | 0.10 BB$
+Lorserker Ben & Friends Daily - 2026-09-04 - 8 boards, Ind., MPs | 280     | Play now | (Registered)
+Lorserker Ben & Friends Just Declare - 2026-09-04 - 16 boards....| 278     | Play now | (Registered)
+Lorserker Ben & Friends Defend - 2026-09-04 - 16 boards, Ind.,MPs| 146     | Play now | (Registered)
+BBO       10 min Free Robot Sprint - 10 min, Ind., Total points..| Full    | 1 min    | Free
+```
 
-| unknown | assumption | check |
-|---|---|---|
-| does a daylong appear in the `ard.php` `tlist` at all? | yes, as a `<t>` row *without* the `c_challenge_*` / `c_challenger` fields | `__brillChallenge.tourneys()` after opening the tournament list |
-| which field holds **our** boards played | first present of `c_boards_completed`, `boards_completed`, `boards_played`, `user_boards_played`, `bds_played`, `played`, `completed`; else any numeric field whose name says *completed*/*played*. The name that matched is logged (`... 3/8 from <field>`) | same dump |
-| the nav button to the tournament list | `button.bbo-phx-navigation` whose icon markup mentions `medal`, `trophy` or `tournament`; labels as fallback | `__brillChallenge.tourneyNav()` |
-| the list row | a visible `div.itemClass` containing the tournament title; else the deepest visible element containing it | console line `opening "<title>"` |
-| the entry button | inside `modal-content` / a material dialog **that mentions the tournament title**: one labelled *Play now / Enter / Register / Start / Play*, or the only button there. Several unlabelled buttons -> it logs them and clicks nothing | console line, then `BRILL_DAYLONG_ENTER_LABEL` |
+**They are not in the `ard.php` `tlist`.** With the list on screen and the harvester widened to
+sniff *every* text XHR/fetch response for the literal `<tlist` (it no longer filters on the
+ard.php URL, and announces each new source once - `__brillChallenge.sources()`),
+`__brillChallenge.tourneys()` stayed empty. So `ard.php` serves challenges only, and the
+daylong list arrives some other way - a JSON API, the game socket, or Angular state. Worth a
+`BBOprobe` capture if a wire-level driver is ever wanted.
 
-If the dump shows the daylongs are **not** in `ard.php`, the next capture should look for a
-separate call made when the tournament screen opens (`BBOprobe.user.js` records XHR/fetch and
-the WebSocket) - and the harvester, not the driver, is what needs changing.
+Until then the **DOM is the source of truth for dailies**, which the layout above makes
+reasonable: every row carries its own `Play now`, the fee column distinguishes free from
+`0.10 BB$`, `Full` marks an unenterable one, and a `Registered` badge shows where the account
+is already entered. `lobby.js` therefore:
+
+- finds the leaf elements whose text is exactly `Play now` (override:
+  `BRILL_PLAY_NOW_LABEL`), then climbs at most six levels to the nearest ancestor that also
+  contains an allowlisted title - "the row" without needing this screen's tag names;
+- skips any row priced in `BB$`, and any marked `Full`;
+- takes the title as everything before the `-` bullet, which includes the date, so each day
+  is correctly its own key;
+- clicks the row's own `Play now`. There is no nav step and no modal in this path.
+
+Entering costs one click, and the row keeps saying `Play now` when the tournament is
+finished - nothing in it reads "8 of 8 played". The guard is therefore behavioural: three
+entries that never reach a table and the daily is left alone for an hour
+(`DAYLONG_MAX_MISSES`, `DAYLONG_DONE_COOLDOWN`), reset as soon as one does seat us.
+
+The `tlist`-shaped daylong path (nav button by icon, row by title, entry button in a modal)
+is still in the file for the day BBO does serve them there; nothing has exercised it.
 
 ## The game WebSocket
 
