@@ -568,9 +568,13 @@ function scanDaylongRows() {
 		if (/BB\$/.test(rowText)) return;               // priced in BB$ - never, allowlist or not
 		if (/\bFull\b/i.test(rowText)) return;
 
-		// The title is everything before the bullet that opens the "8 boards, Ind., MPs"
-		// blurb; it carries the date, so a new day is correctly a new key.
-		var title = norm(rowText.split('\u2022')[0]) || rowText.slice(0, 60);
+		// The row text arrives with no separators at all - "LorserkerBen & Friends Daily -
+		// 2026-09-048 boards, Ind., MPs 280 Play now Registered" - and the entry count in the
+		// middle of it moves as people join, so the whole string is useless as a key: the
+		// cooldown and the miss counter would reset every time someone else registered. These
+		// titles end in the date, so cut there.
+		var dated = rowText.match(/^(.*?\d{4}-\d{2}-\d{2})/);
+		var title = dated ? norm(dated[1]) : norm(rowText.split('\u2022')[0]).slice(0, 60);
 		var tid = 'dom:' + title.toLowerCase();
 		if (seen[tid]) return;
 		seen[tid] = true;
@@ -601,6 +605,72 @@ var lastDaylongTid = null;
 var daylongMisses = {};
 var DAYLONG_MAX_MISSES = 3;
 var DAYLONG_DONE_COOLDOWN = 3600000;
+
+
+// ---- the tournament details screen ---------------------------------------------
+//
+// Clicking a row's "Play now" does NOT seat us. BBO navigates to the tournament's own page,
+// /v3/app/lv/tournament-details/<uuid>, which carries an entry card ("Your entry - this game
+// ends in 9h 41m") and one PLAY button. Observed live: the driver clicked into "Ben & Friends
+// Daily", landed here, and then reported "nothing to play" every two seconds - the list it
+// had been reading was no longer on screen, and nothing pressed PLAY.
+//
+// The URL is the reliable signal; the button is matched on an EXACT text of "play", which is
+// what separates it from the list's "Play now".
+function onTournamentDetails() {
+	try {
+		return String((PWD.location && PWD.location.href) || '').indexOf('tournament-details') !== -1;
+	} catch (e) {
+		return false;
+	}
+}
+
+var DETAILS_PLAY_LABELS = ['play'];
+
+function detailsPlayButton() {
+	var override = localStorage.getItem('BRILL_DETAILS_PLAY_LABEL');
+	var labels = override ? [override.toLowerCase()] : DETAILS_PLAY_LABELS;
+	return $('button:visible', PWD).filter(function () {
+		return labels.indexOf(norm($(this).text()).toLowerCase()) !== -1;
+	}).first();
+}
+
+// Gated on the page itself naming an allowlisted tournament, not on what we clicked a moment
+// ago: that also covers you navigating to a daily by hand, and refuses to press PLAY on a
+// details page for something the allowlist does not cover.
+function playFromDetails() {
+	var pats = daylongPatterns();
+	if (!pats.length) return;
+
+	var text = '';
+	try { text = norm($('body', PWD).text()).toLowerCase(); } catch (e) { }
+	var pat = null;
+	for (var i = 0; i < pats.length; i++) {
+		if (text.indexOf(pats[i]) !== -1) { pat = pats[i]; break; }
+	}
+
+	var msg;
+	if (!pat) {
+		msg = 'on a tournament details page for something outside the allowlist - leaving it alone';
+	} else if (!autoPlay()) {
+		msg = 'on the details page for a "' + pat + '" tournament (autoplay off)';
+	} else {
+		var b = detailsPlayButton();
+		if (b.length) {
+			lobbyLog('details page for "' + pat + '" - clicking PLAY');
+			lastLobbyLog = '';
+			lobbyBusy = true;
+			b[0].click();
+			setTimeout(function () { lobbyBusy = false; }, LOBBY.settle * 3);
+			return;
+		}
+		// No PLAY button: either the day's boards are all played, or the entry card has not
+		// rendered yet. Both are worth saying once rather than silently sitting here.
+		msg = 'details page for "' + pat + '" but no PLAY button - it may be finished; ' +
+			'go back to the tournament list to play another';
+	}
+	if (msg !== lastLobbyLog) { lobbyLog(msg); lastLobbyLog = msg; }
+}
 
 // ---- tournament screen ---------------------------------------------------------
 //
@@ -854,6 +924,10 @@ function lobbyTick() {
 		return;
 	}
 	historyPaneShown = false;          // back in the lobby - arm it for the next match
+
+	// A daily's "Play now" lands on the tournament page, not at a table. Without this the
+	// driver sits there reporting "nothing to play" while PLAY waits on screen.
+	if (onTournamentDetails()) { playFromDetails(); return; }
 
 	// Chicken-and-egg: we learn about challenges from the page's own ard.php responses, but
 	// the page only fetches ard.php on the Challenges screen. Starting on the lobby home we

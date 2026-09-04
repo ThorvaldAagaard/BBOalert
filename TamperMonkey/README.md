@@ -83,7 +83,8 @@ robots, at your own pace, resumable - so once seated the play engine is unchange
 
 They are **not** in the `ard.php` feed (verified live: `tourneys()` stays empty with the list
 open), so the driver reads the tournament screen itself: it finds each row's own `Play now`
-link, climbs to the row, and clicks. Which rows it may click is an allowlist, matched as a
+link, climbs to the row, and clicks - then presses **PLAY** on the tournament
+page that opens, which is what actually seats you. Which rows it may click is an allowlist, matched as a
 case-insensitive substring of the row text - title *and* host badge:
 
 ```js

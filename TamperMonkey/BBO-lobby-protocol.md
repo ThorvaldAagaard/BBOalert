@@ -162,7 +162,21 @@ is already entered. `lobby.js` therefore:
 - skips any row priced in `BB$`, and any marked `Full`;
 - takes the title as everything before the `-` bullet, which includes the date, so each day
   is correctly its own key;
-- clicks the row's own `Play now`. There is no nav step and no modal in this path.
+- clicks the row's own `Play now`.
+
+`Play now` does **not** seat you. Captured live: it navigates to the tournament's own page,
+`/v3/app/lv/tournament-details/<uuid>`, which shows the entry card ("Your entry - this game
+ends in 9h 41m", 280 registered players, Entry fee Free) and a single **PLAY** button. So
+entry is two steps, and the second one is driven off the URL plus a button whose text is
+exactly `Play` - which is what distinguishes it from the list's `Play now`
+(`BRILL_DETAILS_PLAY_LABEL` overrides). Missing that step is not subtle: the driver reported
+"nothing to play" every two seconds with PLAY sitting on screen, because the list it had
+been reading was gone.
+
+The row text also arrives with no separators - `LorserkerBen & Friends Daily -
+2026-09-048 boards, Ind., MPs 280 Play now Registered` - and the entry count moves as people
+register, so the key is cut at the date the titles carry rather than taken from the whole
+string.
 
 Entering costs one click, and the row keeps saying `Play now` when the tournament is
 finished - nothing in it reads "8 of 8 played". The guard is therefore behavioural: three
