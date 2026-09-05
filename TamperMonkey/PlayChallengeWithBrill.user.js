@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Play BBO challenges with Brill
 // @namespace    https://github.com/ThorvaldAagaard/BBOalert
-// @version      0.6.1
+// @version      0.7.0
 // @description  Plays BBO challenges and allowlisted daylong tournaments with Brill (robot challenges by default; humans opt-in). Standalone - no BBOalert extension needed.
 // @match        *://www.bridgebase.com/v3/*
 // @grant        none
@@ -3017,6 +3017,8 @@
 	var lobbyCooldown = {};  // tid -> timestamp until which we leave it alone
 	var lastLobbyLog = '';
 	var lobbyEntered = {};   // tid -> {done, at} recorded when we entered, to detect no progress
+	var challengeGone = {};  // tid -> true once BBO has removed its row: the match is over
+	var challengeMisses = {};// tid -> consecutive ticks we looked for that row and it was absent
 	
 	function autoPlay() { return localStorage.getItem('BRILL_CHALLENGE_AUTOPLAY') === '1'; }
 	
@@ -3029,6 +3031,97 @@
 		var a = ['[brill-lobby]'].concat([].slice.call(arguments));
 		console.log.apply(console, a);
 	}
+	
+	// ---- unthrottled timers --------------------------------------------------------
+	//
+	// Everything here is timer-driven: the 2s tick, the settle delays, and - through the same
+	// scope - the play engine's waitFor() polling and its card-click scheduling. Firefox throttles
+	// timers in a hidden tab, and the cost is not subtle. Measured against Brill.Service's
+	// /timings CSV over one daylong session:
+	//
+	//   tab hidden   median 40.7s between /play calls, one 396s hole at a board boundary
+	//   tab visible  median  2.4s, matching the 2.2s median across 1816 historical calls
+	//   service time median 357ms, p90 1.6s - unchanged throughout
+	//
+	// So the browser was sitting on our callbacks; nothing was slow but the waiting. Worker timers
+	// are not throttled that way, so the delay is taken there and the wake-up posted back.
+	//
+	// SCOPE - why shadowing is safe here. These declarations shadow setTimeout/setInterval INSIDE
+	// the userscript's IIFE only. The vendored BBOalert files and lobby.js see them because they
+	// are concatenated into that scope; PlayWithBrill's blocks see them because userScript() runs
+	// each block through a DIRECT eval(), which inherits the enclosing scope chain. BBO's own page
+	// code keeps the native timers - we are not second-guessing the app's scheduling, only our own.
+	//
+	// If the Worker cannot be created - a CSP without blob: in script-src would do it - every call
+	// falls through to the native timer and __brillChallenge.timers() reports it. The failure mode
+	// is "as slow as before", never "nothing runs".
+	
+	var timerWorker = null;
+	var timerCallbacks = {};      // id -> {fn, args, repeat}; the callback never leaves the page
+	var timerSeq = 0;
+	var timerMode = 'native';
+	
+	(function startTimerWorker() {
+		try {
+			if (typeof Worker !== 'function' || typeof Blob !== 'function' || !window.URL) return;
+			var src =
+				'var t = {};' +
+				'onmessage = function (e) {' +
+				'  var d = e.data;' +
+				'  if (d.op === "set") {' +
+				'    t[d.id] = d.repeat' +
+				'      ? setInterval(function () { postMessage(d.id); }, d.ms)' +
+				'      : setTimeout(function () { postMessage(d.id); }, d.ms);' +
+				'  } else if (d.op === "clear") {' +
+				'    clearTimeout(t[d.id]); clearInterval(t[d.id]); delete t[d.id];' +
+				'  }' +
+				'};';
+			timerWorker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+			timerWorker.onmessage = function (e) {
+				var entry = timerCallbacks[e.data];
+				if (!entry) return;
+				if (!entry.repeat) delete timerCallbacks[e.data];
+				try {
+					entry.fn.apply(null, entry.args);
+				} catch (err) {
+					lobbyLog('timer callback threw: ' + (err && err.message));
+				}
+			};
+			timerMode = 'worker';
+		} catch (e) {
+			timerWorker = null;
+			timerMode = 'native (worker blocked: ' + (e && e.message) + ')';
+		}
+	})();
+	
+	function _schedule(fn, ms, args, repeat) {
+		// A string body, or no worker, is not worth emulating - hand those to the browser.
+		if (!timerWorker || typeof fn !== 'function') {
+			// window.* resolved at call time, not cached at load: these shadowing declarations are
+			// hoisted over the whole IIFE, so a vendored file above us can schedule before this
+			// file has run a single line.
+			return repeat ? window.setInterval(fn, ms) : window.setTimeout(fn, ms);
+		}
+		var id = 'w' + (++timerSeq);
+		timerCallbacks[id] = { fn: fn, args: args, repeat: !!repeat };
+		timerWorker.postMessage({ op: 'set', id: id, ms: ms || 0, repeat: !!repeat });
+		return id;                 // a string handle: truthy, and _clear() knows both kinds
+	}
+	
+	function _clear(h) {
+		if (typeof h === 'string') {
+			if (timerCallbacks[h]) delete timerCallbacks[h];
+			if (timerWorker) timerWorker.postMessage({ op: 'clear', id: h });
+			return;
+		}
+		window.clearTimeout(h);
+		window.clearInterval(h);
+	}
+	
+	function setTimeout(fn, ms) { return _schedule(fn, ms, [].slice.call(arguments, 2), false); }
+	function setInterval(fn, ms) { return _schedule(fn, ms, [].slice.call(arguments, 2), true); }
+	function clearTimeout(h) { _clear(h); }
+	function clearInterval(h) { _clear(h); }
 	
 	// ---- harvest -------------------------------------------------------------------
 	
@@ -3176,6 +3269,7 @@
 		var n = 0;
 		for (var tid in tlist) {
 			var d = tlist[tid];
+			if (challengeGone[tid]) continue;
 			if (d.state !== 'RUNNING' || d.c_challenge_style !== 'PK') continue;
 			var me = myName();
 			var role = (d.c_challenger || '').toLowerCase() === me ? 'challenger'
@@ -3189,6 +3283,7 @@
 	function robotChallenges() {
 		var out = [];
 		for (var tid in tlist) {
+			if (challengeGone[tid]) continue;
 			var p = playable(tlist[tid]);
 			if (!p) continue;
 			if (lobbyCooldown[tid] && Date.now() < lobbyCooldown[tid]) continue;
@@ -3995,11 +4090,28 @@
 	
 		var row = challengeRow(target);
 		if (!row.length) {
-			lobbyLog('no row on screen for ' + describe(target) + ' - backing off');
+			// BBO removes the row the moment the match is over - which is when the OPPONENT plays
+			// their last board if they finish second, not when we do - while the tlist can go on
+			// reporting it RUNNING with our side at 0/12 indefinitely. Confirmed against History ->
+			// Recent tournaments, which lists exactly those challenges scored and ranked.
+			//
+			// So "we are on the list and the row is not there" is the authoritative signal, and a
+			// 60s cooldown was the wrong response: it re-reported a finished challenge every minute
+			// for as long as the tab stayed open. Two consecutive misses - the list may still be
+			// rendering on the first - and it is out for the session.
+			challengeMisses[target.tid] = (challengeMisses[target.tid] || 0) + 1;
+			if (challengeMisses[target.tid] >= 2) {
+				challengeGone[target.tid] = true;
+				lobbyLog(describe(target) + ' has no row on the challenge list - it is finished ' +
+					'(BBO removes the row; see History -> Recent tournaments). Ignoring it.');
+			} else {
+				lobbyLog('no row on screen yet for ' + describe(target) + ' - looking again');
+			}
 			lobbyCooldown[target.tid] = Date.now() + LOBBY.cooldown;
 			lobbyBusy = false;
 			return;
 		}
+		challengeMisses[target.tid] = 0;
 		// Guard against re-entering a challenge whose board count is not advancing.
 		//
 		// Observed live: both robot challenges sat at 3/4 in the tlist while the driver
@@ -4220,7 +4332,26 @@
 		where: function () {
 			return { list: onChallengeList(), table: atTable(), details: detailsPanel().length > 0 };
 		},
-		reset: function () { lobbyCooldown = {}; lobbyEntered = {}; lobbyBusy = false; return 'ok'; }
+		// Which timer path is live, and what the browser is actually doing with our delays.
+		// timerTest() is the one to run BEFORE switching tabs: it reports how late it fired.
+		timers: function () {
+			return { mode: timerMode, pending: Object.keys(timerCallbacks).length, hidden: !!PWD.hidden };
+		},
+		timerTest: function (ms) {
+			var want = ms || 5000, t0 = Date.now();
+			setTimeout(function () {
+				lobbyLog('timer test: asked for ' + want + 'ms, fired after ' + (Date.now() - t0) +
+					'ms (' + timerMode + (PWD.hidden ? ', tab hidden' : ', tab visible') + ')');
+			}, want);
+			return 'scheduled - switch away from the tab now and watch the console';
+		},
+		gone: function () { return Object.keys(challengeGone); },
+	
+		reset: function () {
+			lobbyCooldown = {}; lobbyEntered = {}; lobbyBusy = false;
+			challengeGone = {}; challengeMisses = {}; daylongMisses = {};
+			return 'ok';
+		}
 	};
 	
 	// Everything in this build lives inside one IIFE, so the vendored BBOalert accessors are

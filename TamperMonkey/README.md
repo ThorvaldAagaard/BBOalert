@@ -120,6 +120,35 @@ localStorage.BRILL_PLAY_NOW_LABEL    = 'Spil nu'        // if the UI is not Engl
 localStorage.BRILL_TOURNAMENTS_LABEL = 'Turneringer'    // the nav button, for openTourneys()
 ```
 
+### Background tabs, and why the timers live in a Worker
+
+Everything the script does is timer-driven - the 2s lobby tick, the settle delays, the play
+engine's `waitFor()` polling and its card clicks - and Firefox throttles timers in a hidden
+tab. Measured against Brill.Service's `/timings` CSV over one daylong session:
+
+| tab | gap between `/play` calls |
+|---|---|
+| hidden | median **40.7s**, one **396s** hole at a board boundary |
+| visible | median **2.4s** (the all-time median is 2.2s over 1816 calls) |
+
+Service time was unaffected throughout - median 357ms, p90 1.6s - so the delay was purely the
+browser sitting on our callbacks.
+
+Worker timers are not throttled that way, so `setTimeout`/`setInterval` are shadowed inside
+the script's IIFE and the delay is taken in a Worker. This reaches the play engine too:
+`userScript()` runs each PlayWithBrill block through a **direct** `eval()`, which inherits the
+enclosing scope. BBO's own page code keeps the native timers untouched.
+
+If the Worker cannot be created (a CSP without `blob:`, say) every call falls through to the
+native timer - the failure mode is "as slow as before", never "nothing runs":
+
+```js
+__brillChallenge.timers()      // {mode: 'worker'|'native ...', pending, hidden}
+__brillChallenge.timerTest()   // schedules 5s, logs how late it actually fired
+```
+
+Run `timerTest()`, switch to another tab, and watch the console: that is the whole measurement.
+
 ### Browser support
 
 Verified on **Firefox** (full: lobby entry, bidding and card play) and on **real Chrome 152**

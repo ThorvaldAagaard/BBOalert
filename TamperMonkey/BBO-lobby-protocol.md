@@ -130,6 +130,23 @@ Lobby navigation button: `button.bbo-phx-navigation` with text `Challenges <n>`;
 `Challenge a friend`, `Challenge a stranger`, `Challenge a robot`, `Challenge a star`,
 `Group Challenge`, `ACBL Challenge`, `Challenge Reward - Micro`, `Challenge Reward - Low Stakes`.
 
+### A finished challenge loses its row before the tlist notices
+
+BBO removes a challenge's `challenge-list-item` as soon as the match is over - which is when
+the **opponent** plays their last board if they finish second, not when we do. The `tlist` can
+go on reporting that same challenge `state="RUNNING"` with `c_boards_completed_<us>` at 0 of
+12 indefinitely.
+
+Confirmed from the account's own History -> Recent tournaments, which lists exactly those
+challenges scored and ranked (`Friend Challenge: brill ada / liviumoise, -58.00 IMPs, Rank 2`)
+while the driver was still being told they were playable.
+
+So "we are on the challenge list and the row is not there" is the authoritative signal, and it
+beats the feed. The driver takes two consecutive misses - the list may still be rendering on
+the first - and then drops that tid for the session (`__brillChallenge.gone()`). Before this,
+a 60s cooldown made it re-report a finished challenge every minute for as long as the tab
+stayed open.
+
 ## Daylong tournaments - not in the feed, read from the screen
 
 The lobby's competitive area lists free daylongs. Captured live 2026-09-04, English UI:
