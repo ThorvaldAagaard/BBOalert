@@ -96,9 +96,47 @@ function lobbyLog() {
 // is "as slow as before", never "nothing runs".
 
 var timerWorker = null;
-var timerCallbacks = {};      // id -> {fn, args, repeat}; the callback never leaves the page
+var timerCallbacks = {};      // id -> {fn, args, ms, repeat, native}; callbacks never leave the page
 var timerSeq = 0;
 var timerMode = 'native';
+var timerProbeOk = false;
+
+function _fire(id) {
+	var e = timerCallbacks[id];
+	if (!e) return;
+	if (!e.repeat) delete timerCallbacks[id];
+	try {
+		e.fn.apply(null, e.args);
+	} catch (err) {
+		lobbyLog('timer callback threw: ' + (err && err.message));
+	}
+}
+
+// window.* explicitly: inside this scope the bare names are the shadowing declarations below.
+function _armNative(id) {
+	var e = timerCallbacks[id];
+	if (!e) return;
+	e.native = e.repeat
+		? window.setInterval(function () { _fire(id); }, e.ms)
+		: window.setTimeout(function () { _fire(id); }, e.ms);
+}
+
+// Give up on the worker and put every pending timer back on native ones.
+//
+// This is the load-bearing part, not a nicety. Shadowing the timers script-wide means a
+// worker that accepts postMessage and never answers takes the lobby tick, the play engine's
+// polling and every settle delay down with it - silently, since nothing throws. That is
+// exactly what BBO's CSP produces: script-src is "* 'self' 'unsafe-inline' 'unsafe-eval'",
+// and "*" does not cover blob:, so new Worker(blob:...) constructs fine and then never loads.
+function timerFallback(reason) {
+	if (!timerWorker) return;
+	try { timerWorker.terminate(); } catch (e) { }
+	timerWorker = null;
+	timerMode = 'native (' + reason + ')';
+	lobbyLog('worker timers unavailable (' + reason + ') - using native timers; the browser ' +
+		'throttles those in a hidden tab, so keep the BBO tab visible');
+	for (var id in timerCallbacks) _armNative(id);
+}
 
 (function startTimerWorker() {
 	try {
@@ -116,17 +154,22 @@ var timerMode = 'native';
 			'  }' +
 			'};';
 		timerWorker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+		timerWorker.onerror = function (e) {
+			timerFallback('worker error: ' + ((e && e.message) || 'load failed'));
+		};
 		timerWorker.onmessage = function (e) {
-			var entry = timerCallbacks[e.data];
-			if (!entry) return;
-			if (!entry.repeat) delete timerCallbacks[e.data];
-			try {
-				entry.fn.apply(null, entry.args);
-			} catch (err) {
-				lobbyLog('timer callback threw: ' + (err && err.message));
-			}
+			if (e.data === '__probe') { timerProbeOk = true; return; }
+			_fire(e.data);
 		};
 		timerMode = 'worker';
+
+		// Prove it round-trips before trusting it with everything. A CSP-blocked worker fails
+		// by staying quiet, so silence has to be treated as failure rather than as "not yet".
+		timerWorker.postMessage({ op: 'set', id: '__probe', ms: 0 });
+		window.setTimeout(function () {
+			if (!timerProbeOk) timerFallback('no reply from the worker within 2s');
+			else lobbyLog('timers: worker (not throttled when the tab is hidden)');
+		}, 2000);
 	} catch (e) {
 		timerWorker = null;
 		timerMode = 'native (worker blocked: ' + (e && e.message) + ')';
@@ -134,22 +177,25 @@ var timerMode = 'native';
 })();
 
 function _schedule(fn, ms, args, repeat) {
-	// A string body, or no worker, is not worth emulating - hand those to the browser.
-	if (!timerWorker || typeof fn !== 'function') {
-		// window.* resolved at call time, not cached at load: these shadowing declarations are
-		// hoisted over the whole IIFE, so a vendored file above us can schedule before this
-		// file has run a single line.
+	// A string body is not worth emulating - hand those straight to the browser.
+	if (typeof fn !== 'function') {
 		return repeat ? window.setInterval(fn, ms) : window.setTimeout(fn, ms);
 	}
 	var id = 'w' + (++timerSeq);
-	timerCallbacks[id] = { fn: fn, args: args, repeat: !!repeat };
-	timerWorker.postMessage({ op: 'set', id: id, ms: ms || 0, repeat: !!repeat });
+	timerCallbacks[id] = { fn: fn, args: args, ms: ms || 0, repeat: !!repeat };
+	if (timerWorker) timerWorker.postMessage({ op: 'set', id: id, ms: ms || 0, repeat: !!repeat });
+	else _armNative(id);
 	return id;                 // a string handle: truthy, and _clear() knows both kinds
 }
 
 function _clear(h) {
 	if (typeof h === 'string') {
-		if (timerCallbacks[h]) delete timerCallbacks[h];
+		var e = timerCallbacks[h];
+		if (e && e.native !== undefined) {
+			window.clearTimeout(e.native);
+			window.clearInterval(e.native);
+		}
+		delete timerCallbacks[h];
 		if (timerWorker) timerWorker.postMessage({ op: 'clear', id: h });
 		return;
 	}

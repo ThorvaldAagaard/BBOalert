@@ -120,7 +120,7 @@ localStorage.BRILL_PLAY_NOW_LABEL    = 'Spil nu'        // if the UI is not Engl
 localStorage.BRILL_TOURNAMENTS_LABEL = 'Turneringer'    // the nav button, for openTourneys()
 ```
 
-### Background tabs, and why the timers live in a Worker
+### Background tabs and timer throttling
 
 Everything the script does is timer-driven - the 2s lobby tick, the settle delays, the play
 engine's `waitFor()` polling and its card clicks - and Firefox throttles timers in a hidden
@@ -134,20 +134,41 @@ tab. Measured against Brill.Service's `/timings` CSV over one daylong session:
 Service time was unaffected throughout - median 357ms, p90 1.6s - so the delay was purely the
 browser sitting on our callbacks.
 
-Worker timers are not throttled that way, so `setTimeout`/`setInterval` are shadowed inside
-the script's IIFE and the delay is taken in a Worker. This reaches the play engine too:
-`userScript()` runs each PlayWithBrill block through a **direct** `eval()`, which inherits the
-enclosing scope. BBO's own page code keeps the native timers untouched.
+**Keep the BBO tab visible.** That is the fix. A separate window works as well as a separate
+tab as long as it is not minimised. If you need it hidden, Firefox's `about:config` has the
+switches: `dom.min_background_timeout_value` = `100` and
+`dom.timeout.enable_budget_timer_throttling` = `false`.
 
-If the Worker cannot be created (a CSP without `blob:`, say) every call falls through to the
-native timer - the failure mode is "as slow as before", never "nothing runs":
+#### Why not just move the timers into a Worker
 
-```js
-__brillChallenge.timers()      // {mode: 'worker'|'native ...', pending, hidden}
-__brillChallenge.timerTest()   // schedules 5s, logs how late it actually fired
+Worker timers are not throttled, and the script does shadow
+`setTimeout`/`setInterval`/`clearTimeout`/`clearInterval` inside its own IIFE to route delays
+through one - the shadowing reaches PlayWithBrill too, because `userScript()` runs each block
+through a **direct** `eval()` that inherits the enclosing scope. BBO's own page code keeps the
+native timers.
+
+**On BBO it does not currently work**, and the reason is in the page's own CSP meta tag:
+
+```
+default-src *; script-src * 'self' 'unsafe-inline' 'unsafe-eval'; ...
 ```
 
-Run `timerTest()`, switch to another tab, and watch the console: that is the whole measurement.
+There is no `worker-src` or `child-src`, so worker scripts fall back to `script-src` - and `*`
+does not match the `blob:` scheme. `new Worker(URL.createObjectURL(...))` therefore constructs
+without throwing and then never loads, which is the worst possible shape for a failure: the
+worker accepts every `postMessage` and answers none. Shipped that way in 0.7.0 it stopped the
+lobby tick, the observer bootstrap and the play engine outright, with nothing in the console
+but silence.
+
+So the worker is now **probed before it is trusted**: one round-trip message with a 2s deadline,
+plus an `onerror` handler. Either failing tears the worker down, re-arms every pending timer on
+native ones and says so once in the console. The code stays because it costs nothing and would
+start working the day BBO adds `blob:` to `script-src`; today it always falls back.
+
+```js
+__brillChallenge.timers()      // {mode: 'worker' | 'native (...reason...)', pending, hidden}
+__brillChallenge.timerTest()   // schedules 5s - switch tabs, see how late it fires
+```
 
 ### Browser support
 

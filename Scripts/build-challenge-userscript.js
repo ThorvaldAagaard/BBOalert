@@ -102,7 +102,7 @@ const jquery = read('src', 'jquery-3.5.1.min.js');
 const header = `// ==UserScript==
 // @name         Play BBO challenges with Brill
 // @namespace    https://github.com/ThorvaldAagaard/BBOalert
-// @version      0.7.0
+// @version      0.7.1
 // @description  Plays BBO challenges and allowlisted daylong tournaments with Brill (robot challenges by default; humans opt-in). Standalone - no BBOalert extension needed.
 // @match        *://www.bridgebase.com/v3/*
 // @grant        none
