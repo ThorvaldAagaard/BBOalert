@@ -120,6 +120,32 @@ localStorage.BRILL_PLAY_NOW_LABEL    = 'Spil nu'        // if the UI is not Engl
 localStorage.BRILL_TOURNAMENTS_LABEL = 'Turneringer'    // the nav button, for openTourneys()
 ```
 
+### Which bidding system the server uses
+
+Every deal-bidding endpoint (`/bid`, `/lead`, `/play`, `/claim`, `/pbn/finalize`) takes
+`nsSystem=` / `ewSystem=`, and defaults **both to Brill** when they are absent. At a BBO table
+that default is wrong: Brill drives one seat and the other three are BBO's own robots, so
+partner's bids arrive in GIB's system and ours have to be understandable to a GIB partner.
+Reading that auction through Brill's rules is how a convention the table never played comes
+back as the meaning of a bid.
+
+Both sides are therefore sent as **GIB** by default. Overrides, for a mixed table:
+
+```js
+localStorage.BRILL_SYSTEM    = 'GIB'    // both sides (the default when unset)
+localStorage.BRILL_NS_SYSTEM = 'Brill'  // our side only
+localStorage.BRILL_EW_SYSTEM = 'BEN'    // opponents only
+localStorage.BRILL_SYSTEM    = ''       // send neither - the server falls back to Brill
+```
+
+**The host has to actually have that system.** A name it cannot resolve falls back to Brill
+server-side, with a warning on the service console and nothing in the response - the client
+cannot tell the difference. A host lists what it has at `GET /systems`, and the deployed
+engines answer `["Brill"]` only: their image is built with `-p:IncludeOpponentSystems=false`,
+which leaves the nine ~263 MB `*.system.bin` files out (a 4.36 GB image against 450 MB). Until
+`GIB.system.bin` is dropped into the container's `/app`, this parameter is accepted and
+quietly ignored.
+
 ### Background tabs and timer throttling
 
 Everything the script does is timer-driven - the 2s lobby tick, the settle delays, the play

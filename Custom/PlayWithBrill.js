@@ -585,6 +585,37 @@ getBrillBaseUrl = function () {
 	if (s === 'localssl') return 'https://localhost:7200';
 	return 'https://brillservice.aalborgdata.dk';
 }
+// Which bidding system the server should READ and GENERATE each side's auction with.
+//
+// Every deal-bidding endpoint (/bid, /lead, /play, /claim, /pbn/finalize) takes nsSystem= and
+// ewSystem=, and defaults BOTH to Brill when they are absent - which is what this script sent
+// until now. At a BBO table that default is wrong: Brill drives one seat and the other three
+// are BBO's robots, so partner's bids arrive in GIB's system and ours have to be
+// understandable to a GIB partner. Reading that auction through Brill's rules is how a
+// convention the table never played comes back as the meaning of a bid.
+//
+// Both sides therefore default to GIB. Per-side overrides exist for a mixed table:
+//   localStorage.BRILL_SYSTEM    = 'GIB'    both sides (the default when unset)
+//   localStorage.BRILL_NS_SYSTEM = 'Brill'  our side only
+//   localStorage.BRILL_EW_SYSTEM = 'BEN'    opponents only
+//   localStorage.BRILL_SYSTEM    = ''       send neither, i.e. let the server default to Brill
+//
+// WORTH KNOWING: a name the host cannot resolve falls back to Brill SERVER-SIDE, with a
+// warning on the service console and nothing at all in the response - the client cannot tell
+// the difference. A host publishes what it has at GET /systems, and the deployed engines
+// answer ["Brill"] only: their image is built with -p:IncludeOpponentSystems=false, which
+// leaves the nine ~263 MB *.system.bin files out. Until GIB.system.bin is dropped into the
+// container's /app, this parameter is accepted and quietly ignored.
+getSystemParams = function () {
+	var both = localStorage.getItem('BRILL_SYSTEM');
+	if (both === null) both = 'GIB';
+	var ns = localStorage.getItem('BRILL_NS_SYSTEM') || both;
+	var ew = localStorage.getItem('BRILL_EW_SYSTEM') || both;
+	var p = '';
+	if (ns) p += '&nsSystem=' + encodeURIComponent(ns);
+	if (ew) p += '&ewSystem=' + encodeURIComponent(ew);
+	return p;
+}
 // Player naming for the saved PBN. The server stamps names on the board-saving calls (/play,
 // /claim, /pbn/finalize) into [North]/[East]/[South]/[West] and derives [Room] from the board
 // label (Open, or Closed when it ends in _robot).
@@ -1268,6 +1299,7 @@ BrillsTurnToBid = function (overlay) {
 		if (bidTournamentType != "") {
 			url += "&tournament=" + bidTournamentType
 		}
+		url += getSystemParams()
 		console.log(getNow(true) + " BrillsTurnToBid Requesting " + url)
 		try {
 			fetch(url, {
@@ -1449,6 +1481,7 @@ BrillsTurnToPlay = function (overlay) {
 		if (tournamentType != "") {
 			url += "&tournament=" + tournamentType
 		}
+		url += getSystemParams()
 		console.log(getNow(true) + " BrillsTurnToPlay Requesting " + url)
 		try {
 			fetch(url, {
@@ -1630,6 +1663,7 @@ validateClaimWithServerInternal = function (panel, tricksClaimed, claimerDir, re
 		if (claimerDir) url += "&claimer=" + claimerDir;
 		var tournamentType = getTournamentType();
 		if (tournamentType != "") url += "&tournament=" + tournamentType;
+		url += getSystemParams();
 		console.log(getNow(true) + " validateClaim Requesting " + url);
 		fetch(url, { cache: "no-store" })
 			.then(function (response) {
@@ -1766,6 +1800,7 @@ sendFinalPlayInternal = function () {
 		}
 		var tournamentType = getTournamentType();
 		if (tournamentType != "") url += "&tournament=" + tournamentType;
+		url += getSystemParams();
 		// Count how many of the 4 hands are populated - server needs >= 3 to construct full PBN
 		var handsPopulated = (allHands.N ? 1 : 0) + (allHands.E ? 1 : 0) + (allHands.S ? 1 : 0) + (allHands.W ? 1 : 0);
 		var dealTypeLabel = passedOut ? "passed out" :
