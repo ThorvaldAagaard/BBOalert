@@ -42,13 +42,16 @@
 //                                                 set it to '' to play no tournaments at all)
 //   localStorage.BRILL_DAYLONG_ENTER_LABEL        text of the button that enters a
 //                                                 tournament, if its panel holds more than one
+//   localStorage.BRILL_DAYLONG_LIST_URL           where the dailies list is; learned by the
+//                                                 driver the first time it sees that list
 //   delete localStorage.BRILL_CHALLENGE_AUTOPLAY  back to report-only
 
 var LOBBY = {
 	poll: 2000,      // ms between lobby checks
 	settle: 1500,    // ms to let a screen render before the next click
 	cooldown: 60000, // ms before retrying a challenge we failed to enter
-	stallMs: 90000   // no board gained in this long => treat the challenge as stalled
+	stallMs: 90000,  // no board gained in this long => treat the challenge as stalled
+	stallMaxMs: 900000 // a challenge that keeps stalling backs off, doubling up to this
 };
 
 var tlist = {};          // tid -> parsed attributes of the last <t> seen
@@ -58,6 +61,7 @@ var lastLobbyLog = '';
 var lobbyEntered = {};   // tid -> {done, at} recorded when we entered, to detect no progress
 var challengeGone = {};  // tid -> true once BBO has removed its row: the match is over
 var challengeMisses = {};// tid -> consecutive ticks we looked for that row and it was absent
+var challengeStalls = {};// tid -> {n, done}: how often it stalled at that count, for the backoff
 
 function autoPlay() { return localStorage.getItem('BRILL_CHALLENGE_AUTOPLAY') === '1'; }
 
@@ -725,7 +729,124 @@ function scanDaylongRows() {
 			done: null, total: 0, field: null, playNow: $(this)
 		});
 	});
+	if (out.length) rememberDailyList(out);
 	return out;
+}
+
+// ---- getting to the dailies without a nav button -------------------------------
+//
+// The tournament nav button has never been captured, and README's rule stands: moving the
+// screen on a guess is worse than doing nothing. But the driver does not need to guess where
+// the list is - it has SEEN it, every time the scanner found an allowlisted row. So it
+// remembers that URL (in localStorage, so once per browser profile is enough) and goes back
+// to it through the app's own router: pushState plus a popstate event, which is exactly what
+// Angular's router listens for on Back/Forward. No reload, and the session survives.
+//
+// If that ever stops working the arrival check says so once and turns it off for the
+// session, leaving the old behaviour - dailies played while the list is on screen.
+var DAILY_LOOK_MS = 600000;      // idle, and every known daily finished: look for new ones this often
+var DAILY_LOOK_MIN_MS = 60000;   // never look more often than this, whatever we think is open
+var IDLE_DWELL_MS = 20000;       // idle off the challenge list this long => go back to it
+var ARRIVE_MS = 10000;           // a look that has not reached the list by then has failed
+
+var challengeListPath = null;    // where the challenge list lives, so we never "learn" that
+var knownDailies = {};           // tid -> title, as of the last time the list was on screen
+var lastDailyLook = 0;
+var dailyLookPending = null;     // {at, url} while a look is under way
+var dailyUrlBroken = false;
+var idleOffListSince = 0;
+
+function pagePath() {
+	try { return PWD.location.pathname + PWD.location.search; } catch (e) { return ''; }
+}
+
+function dailyListUrl() {
+	if (dailyUrlBroken) return null;
+	try { return localStorage.getItem('BRILL_DAYLONG_LIST_URL') || null; } catch (e) { return null; }
+}
+
+function rememberDailyList(rows) {
+	var here = pagePath();
+	if (here && !onTournamentDetails() && here !== challengeListPath && here !== dailyListUrl()) {
+		try { localStorage.setItem('BRILL_DAYLONG_LIST_URL', here); } catch (e) { }
+		lobbyLog('learned where the dailies are: ' + here);
+	}
+	knownDailies = {};
+	for (var i = 0; i < rows.length; i++) knownDailies[rows[i].tid] = rows[i].title;
+	if (dailyLookPending) dailyLookPending = null;
+}
+
+function gotoPath(url) {
+	var w = PWD.defaultView || window;
+	w.history.pushState(null, '', url);
+	w.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+}
+
+// Is there a daily worth walking over for? Something we saw last time that is not cooling
+// down says yes straight away; otherwise only every DAILY_LOOK_MS, which is how the next
+// day's tournaments get noticed.
+function dailyLookDue() {
+	if (!daylongPatterns().length || !dailyListUrl()) return false;
+	var since = Date.now() - lastDailyLook;
+	if (since < DAILY_LOOK_MIN_MS) return false;
+	for (var tid in knownDailies) {
+		if (!(lobbyCooldown[tid] && Date.now() < lobbyCooldown[tid])) return true;
+	}
+	return since >= DAILY_LOOK_MS;
+}
+
+function lookAtDailies(why) {
+	var url = dailyListUrl();
+	lobbyLog(why + ' - checking the dailies (' + url + ')');
+	lastDailyLook = Date.now();
+	dailyLookPending = { at: Date.now(), url: url };
+	lastLobbyLog = '';
+	lobbyBusy = true;
+	try { gotoPath(url); } catch (e) { lobbyLog('navigation failed: ' + (e && e.message)); }
+	setTimeout(function () { lobbyBusy = false; }, LOBBY.settle * 2);
+}
+
+function checkDailyArrival() {
+	if (!dailyLookPending || Date.now() - dailyLookPending.at < ARRIVE_MS) return;
+	var here = pagePath();
+	if (here !== dailyLookPending.url) {
+		dailyUrlBroken = true;
+		lobbyLog('went for the dailies at ' + dailyLookPending.url + ' but ended up on ' + here +
+			' - not trying that again this session; open the tournament list by hand');
+	}
+	dailyLookPending = null;
+}
+
+// Nothing to play where we are. The challenge list is home - it is where new challenges
+// show up - and the dailies are an errand from it: go when one may be open, come back when
+// there is nothing left there.
+function idleRoam() {
+	checkDailyArrival();
+	if (onChallengeList()) {
+		idleOffListSince = 0;
+		if (dailyLookDue()) lookAtDailies('no challenges to play');
+		return;
+	}
+	if (!idleOffListSince) { idleOffListSince = Date.now(); return; }
+	if (Date.now() - idleOffListSince < IDLE_DWELL_MS) return;
+	idleOffListSince = 0;
+
+	// Done with one daily and another is still open: straight on to it, not via home.
+	if (pagePath() !== dailyListUrl() && dailyLookDue()) {
+		lookAtDailies('nothing to play here');
+		return;
+	}
+
+	// Leaving the list with nothing seen on it: whatever we remembered is gone from it.
+	if (pagePath() === dailyListUrl() && !domScan.rows.length) knownDailies = {};
+
+	var nav = challengesNavButton();
+	if (!nav.length) return;
+	lobbyLog('nothing left to play here - back to Challenges');
+	lastLobbyLog = '';
+	lobbyBusy = true;
+	nav[0].click();
+	setTimeout(function () { lobbyBusy = false; }, LOBBY.settle * 2);
 }
 
 function daylongDomTodo() {
@@ -779,6 +900,14 @@ function detailsPlayButton() {
 // Gated on the page itself naming an allowlisted tournament, not on what we clicked a moment
 // ago: that also covers you navigating to a daily by hand, and refuses to press PLAY on a
 // details page for something the allowlist does not cover.
+//
+// Returns 'leave' once a details page has shown no PLAY button for DETAILS_GIVE_UP_MS: the
+// tick then carries on as if we were anywhere else in the lobby, instead of parking on a
+// finished daily until someone navigates away by hand.
+var DETAILS_GIVE_UP_MS = 10000;
+var detailsNoPlaySince = 0;
+var detailsGaveUp = null;        // the details page we already gave up on - don't wait again
+
 function playFromDetails() {
 	var pats = daylongPatterns();
 	if (!pats.length) return;
@@ -800,15 +929,30 @@ function playFromDetails() {
 		if (b.length) {
 			lobbyLog('details page for "' + pat + '" - clicking PLAY');
 			lastLobbyLog = '';
+			detailsNoPlaySince = 0;
+			detailsGaveUp = null;
 			lobbyBusy = true;
 			b[0].click();
 			setTimeout(function () { lobbyBusy = false; }, LOBBY.settle * 3);
 			return;
 		}
 		// No PLAY button: either the day's boards are all played, or the entry card has not
-		// rendered yet. Both are worth saying once rather than silently sitting here.
-		msg = 'details page for "' + pat + '" but no PLAY button - it may be finished; ' +
-			'go back to the tournament list to play another';
+		// rendered yet. Give it a moment for the second, then treat it as the first.
+		if (detailsGaveUp === pagePath()) return 'leave';
+		if (!detailsNoPlaySince) detailsNoPlaySince = Date.now();
+		if (Date.now() - detailsNoPlaySince >= DETAILS_GIVE_UP_MS) {
+			detailsNoPlaySince = 0;
+			detailsGaveUp = pagePath();
+			if (lastDaylongTid) {
+				lobbyCooldown[lastDaylongTid] = Date.now() + DAYLONG_DONE_COOLDOWN;
+				daylongMisses[lastDaylongTid] = 0;
+				lastDaylongTid = null;
+			}
+			lobbyLog('details page for "' + pat + '" has no PLAY button - finished; moving on');
+			lastLobbyLog = '';
+			return 'leave';
+		}
+		msg = 'details page for "' + pat + '" but no PLAY button yet';
 	}
 	if (msg !== lastLobbyLog) { lobbyLog(msg); lastLobbyLog = msg; }
 }
@@ -1062,20 +1206,29 @@ function lobbyTick() {
 		showHistoryPane();
 		// We got in, so the last daily clicked was not a finished one.
 		if (lastDaylongTid) { daylongMisses[lastDaylongTid] = 0; lastDaylongTid = null; }
+		idleOffListSince = 0;
 		return;
 	}
 	historyPaneShown = false;          // back in the lobby - arm it for the next match
+	if (onChallengeList()) challengeListPath = pagePath();
 
 	// A daily's "Play now" lands on the tournament page, not at a table. Without this the
-	// driver sits there reporting "nothing to play" while PLAY waits on screen.
-	if (onTournamentDetails()) { playFromDetails(); return; }
+	// driver sits there reporting "nothing to play" while PLAY waits on screen. A finished
+	// one ('leave') falls through to the rest of the tick, which moves us on.
+	if (onTournamentDetails()) {
+		if (playFromDetails() !== 'leave') return;
+	} else {
+		detailsNoPlaySince = 0;
+		detailsGaveUp = null;
+	}
 
 	// Chicken-and-egg: we learn about challenges from the page's own ard.php responses, but
 	// the page only fetches ard.php on the Challenges screen. Starting on the lobby home we
 	// therefore have no data, conclude there is nothing to play, and never navigate - so we
 	// never get data. Seed ourselves by going to the challenge list once.
 	// Only in autoplay mode: report-only must stay passive and not move the user's screen.
-	if (autoPlay() && !Object.keys(tlist).length) {
+	// Dailies already on screen are played first; the seeding can wait until they are done.
+	if (autoPlay() && !Object.keys(tlist).length && !daylongDomTodo().length) {
 		if (!onChallengeList()) {
 			var seed = challengesNavButton();
 			if (seed.length) {
@@ -1149,10 +1302,18 @@ function lobbyTick() {
 	if (msg !== lastLobbyLog) { lobbyLog(msg + (autoPlay() ? '' : '  (autoplay off)')); lastLobbyLog = msg; }
 	if (!autoPlay()) return;
 
-	// Challenges first: someone (or some robot) is waiting on the other side of one, while a
-	// daylong is only waiting on the clock.
-	if (todo.length) { enterChallenge(todo[0]); return; }
-	if (dailies.length) { enterDaylong(dailies[0]); return; }
+	// A daily whose row is on screen right now goes first: it is one click away, and leaving
+	// the list for a challenge meant never getting back to it. That was the failure: every
+	// time the tournament list came up, a challenge the feed still called unfinished pulled
+	// the screen back to Challenges within a tick. The challenge is still there afterwards.
+	//
+	// Otherwise challenges first - someone (or some robot) is waiting on the other side of
+	// one, while a daylong is only waiting on the clock.
+	var here = dailies.filter(function (c) { return c.dom; });
+	if (here.length) { idleOffListSince = 0; enterDaylong(here[0]); return; }
+	if (todo.length) { idleOffListSince = 0; enterChallenge(todo[0]); return; }
+	if (dailies.length) { idleOffListSince = 0; enterDaylong(dailies[0]); return; }
+	idleRoam();
 }
 
 function enterChallenge(target) {
@@ -1189,10 +1350,14 @@ function enterChallenge(target) {
 			challengeGone[target.tid] = true;
 			lobbyLog(describe(target) + ' has no row on the challenge list - it is finished ' +
 				'(BBO removes the row; see History -> Recent tournaments). Ignoring it.');
+			lobbyCooldown[target.tid] = Date.now() + LOBBY.cooldown;
 		} else {
+			// Look again in a few seconds, while we are still on the list. A full minute here
+			// meant leaving, coming back, and yanking the screen to Challenges a second time
+			// just to confirm what the first look already showed.
 			lobbyLog('no row on screen yet for ' + describe(target) + ' - looking again');
+			lobbyCooldown[target.tid] = Date.now() + LOBBY.settle * 2;
 		}
-		lobbyCooldown[target.tid] = Date.now() + LOBBY.cooldown;
 		lobbyBusy = false;
 		return;
 	}
@@ -1208,11 +1373,19 @@ function enterChallenge(target) {
 	// That makes this guard load-bearing rather than a workaround: a completed challenge can
 	// still read done < boards for a while, and without the cooldown the driver would keep
 	// re-entering a match it has already finished.
+	//
+	// The cooldown doubles each time it stalls again at the same count (1, 2, 4, 8, 15 min).
+	// A flat minute made a lagging challenge the thing that pulled the screen back to
+	// Challenges every time a daily was in reach.
 	var prev = lobbyEntered[target.tid];
 	if (prev && prev.done === target.done && (Date.now() - prev.at) > LOBBY.stallMs) {
+		var st = challengeStalls[target.tid];
+		st = challengeStalls[target.tid] =
+			{ n: (st && st.done === target.done ? st.n : 0) + 1, done: target.done };
+		var wait = Math.min(LOBBY.cooldown * Math.pow(2, st.n - 1), LOBBY.stallMaxMs);
 		lobbyLog('challenge ' + target.tid.slice(0, 8) + ' stalled at ' + target.done + '/' +
-			target.total + ' - cooling down instead of re-entering');
-		lobbyCooldown[target.tid] = Date.now() + LOBBY.cooldown;
+			target.total + ' - leaving it ' + Math.round(wait / 60000) + ' min');
+		lobbyCooldown[target.tid] = Date.now() + wait;
 		delete lobbyEntered[target.tid];
 		lobbyBusy = false;
 		return;
@@ -1432,9 +1605,21 @@ window.__brillChallenge = {
 	},
 	gone: function () { return Object.keys(challengeGone); },
 
+	// Where the driver goes for the dailies (learned the first time the list is on screen),
+	// and what it saw there. dailyUrl(null) forgets it; dailyUrl('/v3/...') sets it by hand.
+	dailyUrl: function (url) {
+		if (url === null) localStorage.removeItem('BRILL_DAYLONG_LIST_URL');
+		else if (url !== undefined) localStorage.setItem('BRILL_DAYLONG_LIST_URL', url);
+		if (url !== undefined) dailyUrlBroken = false;
+		return { url: dailyListUrl(), broken: dailyUrlBroken, known: knownDailies,
+			lastLook: lastDailyLook ? new Date(lastDailyLook).toLocaleTimeString() : null };
+	},
+
 	reset: function () {
 		lobbyCooldown = {}; lobbyEntered = {}; lobbyBusy = false;
 		challengeGone = {}; challengeMisses = {}; daylongMisses = {};
+		challengeStalls = {}; dailyUrlBroken = false; detailsGaveUp = null;
+		lastDailyLook = 0; dailyLookPending = null; idleOffListSince = 0;
 		return 'ok';
 	}
 };

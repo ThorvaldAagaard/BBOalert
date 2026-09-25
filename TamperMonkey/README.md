@@ -102,10 +102,33 @@ it. BBO's own Free Daylong is a general competitive event scored against a human
 is not included until you name it. Two hard guards ignore the allowlist entirely: a row
 priced in **BB$** is never clicked, and neither is one marked **Full**.
 
-**It only sees the rows while the tournament list is on screen.** Nothing navigates there by
-itself - the nav button has not been captured and moving the screen around on a guess is
-worse than doing nothing. Leave BBO on that list (or call `openTourneys()`), turn autoplay
-on, and it works from there. Challenges take priority when both are playable.
+**It only sees the rows while the tournament list is on screen**, so the first time, open
+that list by hand (or call `openTourneys()`). The driver remembers the URL it saw the rows at
+(`localStorage.BRILL_DAYLONG_LIST_URL`) and from then on gets there itself, through the app's
+own router - no guessing at the uncaptured nav button. The Challenges list is home:
+
+- a daily whose row is **on screen** is played before any challenge - it is one click away,
+  and leaving for a challenge used to mean never coming back to it;
+- otherwise challenges come first;
+- with nothing to play on Challenges it goes to the dailies when one it saw last time is not
+  yet finished (and every 10 minutes regardless, to catch the next day's), and it comes
+  back to Challenges after 20 idle seconds anywhere else.
+
+A tournament page that shows no **PLAY** button for 10 seconds is a finished daily: it is left
+for an hour and the driver moves on to the next one.
+
+```js
+__brillChallenge.dailyUrl()        // {url, broken, known, lastLook}
+__brillChallenge.dailyUrl(null)    // forget it; the next visit to the list re-learns it
+```
+
+If the router trick ever stops working, the first failed trip says so in the console and it is
+switched off for the session - back to playing dailies only while the list is on screen.
+
+Two things used to drag the screen back to Challenges within seconds of the list coming up,
+and both now back off: a challenge the feed still calls unfinished but whose row is gone is
+confirmed on the same visit (a second look 3s later, not a minute later), and one that
+enters without the board count moving is left 1, 2, 4, 8 and then 15 minutes.
 
 A finished daily still shows `Play now` and nothing in the row says "8 of 8 played", so the
 stop condition is behavioural: three entries that never reach a table and the tournament is
