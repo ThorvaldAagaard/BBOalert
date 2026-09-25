@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Play BBO challenges with Brill
 // @namespace    https://github.com/ThorvaldAagaard/BBOalert
-// @version      0.9.0
+// @version      0.9.1
 // @description  Plays BBO challenges and allowlisted daylong tournaments with Brill (robot challenges by default; humans opt-in). Standalone - no BBOalert extension needed.
 // @match        *://www.bridgebase.com/v3/*
 // @grant        none
@@ -3016,6 +3016,11 @@
 	};
 	
 	var tlist = {};          // tid -> parsed attributes of the last <t> seen
+	// Have we seen the challenge list at all? NOT the same as "tlist has rows": with no
+	// challenges the list is empty, and treating that as "no data yet" sent the driver back to
+	// Challenges to load it every time it went anywhere else - the dailies included.
+	var tlistLoaded = false;
+	var challengeListSince = 0;
 	var lobbyBusy = false;
 	var lobbyCooldown = {};  // tid -> timestamp until which we leave it alone
 	var lastLobbyLog = '';
@@ -3180,6 +3185,7 @@
 	// needless work.
 	function harvestTlist(text) {
 		if (!text || text.indexOf('<tlist') === -1) return 0;
+		tlistLoaded = true;
 		var rows = text.match(/<t\s[^>]*\/>/g) || [];
 		for (var i = 0; i < rows.length; i++) {
 			var d = {}, m, re = /([\w]+)="([^"]*)"/g;
@@ -3715,6 +3721,7 @@
 	var lastDailyLook = 0;
 	var dailyLookPending = null;     // {at, url} while a look is under way
 	var dailyUrlBroken = false;
+	var dailyUrlHinted = false;
 	var idleOffListSince = 0;
 	
 	function pagePath() {
@@ -3786,6 +3793,11 @@
 		if (onChallengeList()) {
 			idleOffListSince = 0;
 			if (dailyLookDue()) lookAtDailies('no challenges to play');
+			else if (!dailyListUrl() && !dailyUrlBroken && daylongPatterns().length && !dailyUrlHinted) {
+				dailyUrlHinted = true;
+				lobbyLog('nothing to play, and I do not know where the dailies list is yet - open it ' +
+					'by hand once and I will remember it');
+			}
 			return;
 		}
 		if (!idleOffListSince) { idleOffListSince = Date.now(); return; }
@@ -3809,6 +3821,9 @@
 		nav[0].click();
 		setTimeout(function () { lobbyBusy = false; }, LOBBY.settle * 2);
 	}
+	
+	var ARRIVAL_GRACE_MS = 8000;
+	var arrival = { path: null, at: 0 };  // the screen we are on and when we got there
 	
 	function daylongDomTodo() {
 		if (Date.now() - domScan.at >= DOM_SCAN_MS) {
@@ -4171,7 +4186,28 @@
 			return;
 		}
 		historyPaneShown = false;          // back in the lobby - arm it for the next match
-		if (onChallengeList()) challengeListPath = pagePath();
+		if (onChallengeList()) {
+			challengeListPath = pagePath();
+			// Belt and braces for tlistLoaded: an empty list might come back without a <tlist>
+			// at all, and a few seconds on the screen is as much as the page will ever tell us.
+			if (!challengeListSince) challengeListSince = Date.now();
+			else if (Date.now() - challengeListSince > 5000) tlistLoaded = true;
+		} else {
+			challengeListSince = 0;
+		}
+	
+		// A new screen gets ARRIVAL_GRACE_MS to show its dailies before a challenge may take us
+		// away from it. Without this, opening the tournament list lost to a challenge within a
+		// tick or two: the scan result was cached from the previous screen (empty), and the rows
+		// themselves render a moment after the URL changes.
+		var path = pagePath();
+		if (path !== arrival.path) {
+			arrival = { path: path, at: Date.now() };
+			domScan.at = 0;
+		}
+		var settling = autoPlay() && !onChallengeList() && !onTournamentDetails() &&
+			daylongPatterns().length > 0 && Date.now() - arrival.at < ARRIVAL_GRACE_MS;
+		if (settling) domScan.at = 0;      // rescan every tick until the grace is over
 	
 		// A daily's "Play now" lands on the tournament page, not at a table. Without this the
 		// driver sits there reporting "nothing to play" while PLAY waits on screen. A finished
@@ -4189,7 +4225,7 @@
 		// never get data. Seed ourselves by going to the challenge list once.
 		// Only in autoplay mode: report-only must stay passive and not move the user's screen.
 		// Dailies already on screen are played first; the seeding can wait until they are done.
-		if (autoPlay() && !Object.keys(tlist).length && !daylongDomTodo().length) {
+		if (autoPlay() && !tlistLoaded && !settling && !daylongDomTodo().length) {
 			if (!onChallengeList()) {
 				var seed = challengesNavButton();
 				if (seed.length) {
@@ -4272,6 +4308,7 @@
 		// one, while a daylong is only waiting on the clock.
 		var here = dailies.filter(function (c) { return c.dom; });
 		if (here.length) { idleOffListSince = 0; enterDaylong(here[0]); return; }
+		if (settling) return;              // give the screen its moment before leaving it
 		if (todo.length) { idleOffListSince = 0; enterChallenge(todo[0]); return; }
 		if (dailies.length) { idleOffListSince = 0; enterDaylong(dailies[0]); return; }
 		idleRoam();
