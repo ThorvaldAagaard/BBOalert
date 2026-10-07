@@ -1583,12 +1583,38 @@ BrillsTurnToPlay = function (overlay) {
 	}
 }
 
+// Answer the opponent's claim dialog. Tries BBO's button classes first, then the button text,
+// since the classes are not guaranteed. Returns true if a button was clicked.
+answerClaim = function (panel, accept, reason) {
+	var p = panel || getAnnouncementPanel();
+	var b = $(accept ? "button.accept-button:visible" : "button.reject-button:visible", p);
+	if (b.length == 0) b = $("button:visible:contains('" + (accept ? "Yes" : "No") + "')", p);
+	console.log(getNow(true) + " Claim " + (accept ? "accepted" : "rejected") + " - " + reason +
+		(b.length == 0 ? " (no button found)" : ""));
+	if (b.length == 0) return false;
+	b.first().click();
+	return true;
+}
+
+claimDialogOpen = function (panel) {
+	var p = panel || getAnnouncementPanel();
+	return isVisible(p) && /\bI claim\b/i.test($(p).text());
+}
+
 validateClaimWithServer = function (panel, tricksClaimed, claimerDir, resultKind, resultDelta) {
 	// Called when an opponent claim dialog appears. Sends /claim to the server for validation,
 	// then auto-clicks Accept (Yes) or Reject (No) based on the response.
-	// On any error or missing data, leaves the dialog up for the user to decide manually.
+	// Whenever the server cannot confirm the claim (error, missing data, unclear answer) it is
+	// rejected and play goes on - leaving the dialog up stops the play until someone clicks it.
+	// The watchdog is the backstop for paths that never answer, e.g. a hanging fetch.
+	claimDecision = null;
+	setTimeout(function () {
+		if (!claimDialogOpen(panel)) return;
+		answerClaim(panel, claimDecision === true, "dialog still open after 15s" +
+			(claimDecision === null ? ", server gave no verdict" : ""));
+	}, 15000);
 	if (!tricksClaimed) {
-		console.warn(getNow(true) + " validateClaimWithServer: no tricks parsed, leaving dialog for manual decision");
+		answerClaim(panel, false, "no tricks parsed from the dialog");
 		return;
 	}
 	// Defer briefly so BBO has time to reveal all 4 hands as part of the claim presentation.
@@ -1631,8 +1657,8 @@ validateClaimWithServerInternal = function (panel, tricksClaimed, claimerDir, re
 		if (!deal["number"]) deal["number"] = getDealNumber();
 		// Final check - we still need at minimum hand and number to send
 		if (!deal["hand"] || !deal["number"]) {
-			console.warn(getNow(true) + " validateClaimWithServer: still missing hand/number after fallback (hand=" +
-				deal["hand"] + ", number=" + deal["number"] + "), leaving dialog for manual decision");
+			answerClaim(panel, false, "still missing hand/number after fallback (hand=" +
+				deal["hand"] + ", number=" + deal["number"] + ")");
 			return;
 		}
 		var ctx = deal["ctx"];
@@ -1661,6 +1687,16 @@ validateClaimWithServerInternal = function (panel, tricksClaimed, claimerDir, re
 			"&tricks=" + tricksClaimed +
 			"&n=" + allHands.N + "&e=" + allHands.E + "&s=" + allHands.S + "&w=" + allHands.W;
 		if (claimerDir) url += "&claimer=" + claimerDir;
+		// The server reads `tricks` as the DECLARING side's tricks unless told otherwise, and it
+		// ignores `claimer`. When we declare, the claim dialog comes from a defender - without
+		// claimside the server validates the defence's count against OUR hands and rejects it.
+		var declarerDir = getDeclarerDirection();
+		var declaringSide = { N: "NS", S: "NS", E: "EW", W: "EW" };
+		if (claimerDir && declarerDir && declaringSide[claimerDir] != declaringSide[declarerDir]) {
+			url += "&claimside=defenders";
+		}
+		console.log(getNow(true) + " validateClaim claimer=" + claimerDir + " declarer=" + (declarerDir || "?") +
+			" mySeat=" + seat);
 		var tournamentType = getTournamentType();
 		if (tournamentType != "") url += "&tournament=" + tournamentType;
 		url += getSystemParams();
@@ -1669,7 +1705,7 @@ validateClaimWithServerInternal = function (panel, tricksClaimed, claimerDir, re
 			.then(function (response) {
 				console.log(getNow(true) + " validateClaim Response status: " + response.status);
 				if (!response.ok) {
-					console.warn(getNow(true) + " validateClaim non-OK response, leaving for manual decision");
+					answerClaim(panel, false, "server answered " + response.status);
 					return null;
 				}
 				return response.json();
@@ -1685,20 +1721,22 @@ validateClaimWithServerInternal = function (panel, tricksClaimed, claimerDir, re
 				var accept = (data.saved === true) || (data.accept === true) || (data.ok === true) || (data.valid === true);
 				var reject = (data.saved === false) || (data.accept === false) || (data.reject === true) || (data.valid === false);
 				if (accept) {
-					console.log(getNow(true) + " validateClaim: server accepted (claim=" + data.claim + ", result=" + data.result + "), clicking Yes");
-					$("button.accept-button:visible", panel).click();
+					claimDecision = true;
+					answerClaim(panel, true, "server accepted (claim=" + data.claim + ", result=" + data.result + ")");
 				} else if (reject) {
-					console.log(getNow(true) + " validateClaim: server rejected, clicking No");
-					$("button.reject-button:visible", panel).click();
+					claimDecision = false;
+					answerClaim(panel, false, "server rejected");
 				} else {
-					console.log(getNow(true) + " validateClaim: server response unclear, leaving for manual decision");
+					answerClaim(panel, false, "server response unclear");
 				}
 			})
 			.catch(function (error) {
 				console.error(getNow(true) + " validateClaim error:", error.message);
+				answerClaim(panel, false, "validation request failed");
 			});
 	} catch (e) {
 		console.error(getNow(true) + " validateClaim exception:", e);
+		answerClaim(panel, false, "validation threw");
 	}
 }
 
