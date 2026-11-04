@@ -35,16 +35,19 @@ function onBiddingBoxDisplayed() {
     setBiddingButtonEvents();
     //    setExplainInputClickEvents();
     var elAlertExplain = getExplainInput();
-    if (elAlertExplain.onclick == null) {
-        elAlertExplain.onclick = function () {
-            toggleButtons(this);
-        };
-    }
     lastUserExplanation = '';
-    elAlertExplain.onkeyup = inputOnKeyup;
-    elAlertExplain.oninput = inputChanged;
-    //    elAlertExplain.onfocus = inputOnFocus;
-    getExplainInput().setAttribute("maxlength", "69");
+    // No explanation field at robot tables - still announce the bidding box.
+    if (elAlertExplain != null) {
+        if (elAlertExplain.onclick == null) {
+            elAlertExplain.onclick = function () {
+                toggleButtons(this);
+            };
+        }
+        elAlertExplain.onkeyup = inputOnKeyup;
+        elAlertExplain.oninput = inputChanged;
+        //    elAlertExplain.onfocus = inputOnFocus;
+        elAlertExplain.setAttribute("maxlength", "69");
+    }
     BBOalertEvents().dispatchEvent(E_onBiddingBoxDisplayed);
     execUserScript('%onBiddingBoxDisplayed%');
 }

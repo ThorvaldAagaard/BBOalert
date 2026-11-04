@@ -1177,10 +1177,14 @@ makeBid = function (bid, artificial, explain) {
 	let elBiddingBox = parent.document.querySelector('.biddingBoxClass');
 	if (elBiddingBox != null) {
 		let elBiddingButtons = elBiddingBox.querySelectorAll('.biddingBoxButtonClass');
-		let alertField = elBiddingBox.querySelector('.mat-form-field-infix').querySelector('input');
-		alertField.value = unescape(explain);
-		let eventInput = new Event('input');
-		alertField.dispatchEvent(eventInput);
+		// The explanation field is optional: BBO leaves it out of the bidding box at robot
+		// tables, and an unguarded lookup threw here before any button was clicked - the
+		// bid was never made and the table stalled on our turn.
+		let alertField = elBiddingBox.querySelector('.mat-form-field-infix input, .mat-mdc-form-field-infix input, input');
+		if (alertField != null) {
+			alertField.value = unescape(explain);
+			alertField.dispatchEvent(new Event('input'));
+		}
 		if (elBiddingButtons != null) {
 			if (elBiddingBox.style.display != 'none') {
 				if (artificial == 1) elBiddingButtons[15].click();

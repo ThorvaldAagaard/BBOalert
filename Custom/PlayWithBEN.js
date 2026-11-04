@@ -899,10 +899,12 @@ makeBid = function (bid, artificial, explain) {
 	let elBiddingBox = parent.document.querySelector('.biddingBoxClass');
 	if (elBiddingBox != null) {
 		let elBiddingButtons = elBiddingBox.querySelectorAll('.biddingBoxButtonClass');
-		let alertField = elBiddingBox.querySelector('.mat-form-field-infix').querySelector('input');
-		alertField.value = unescape(explain);
-		let eventInput = new Event('input');
-		alertField.dispatchEvent(eventInput);
+		// The explanation field is optional (absent at robot tables) - don't let it block the bid.
+		let alertField = elBiddingBox.querySelector('.mat-form-field-infix input, .mat-mdc-form-field-infix input, input');
+		if (alertField != null) {
+			alertField.value = unescape(explain);
+			alertField.dispatchEvent(new Event('input'));
+		}
 		if (elBiddingButtons != null) {
 			if (elBiddingBox.style.display != 'none') {
 				if (artificial == 1) elBiddingButtons[15].click();

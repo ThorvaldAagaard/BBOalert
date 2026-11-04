@@ -440,7 +440,8 @@ function getExplainInput() {
 	var bbox = getBiddingBox();
 	if (bbox == null) return null;
 	if (!isVisible(bbox)) return null;
-	return bbox.querySelector(".mat-form-field-infix").querySelector('input');
+	// May be absent (BBO omits the explanation field at robot tables): return null, don't throw.
+	return bbox.querySelector('.mat-form-field-infix input, .mat-mdc-form-field-infix input, input');
 }
 
 /**
