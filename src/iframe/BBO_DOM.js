@@ -977,7 +977,11 @@ function getOpenProfile() {
 function getOpenProfileBBOid() {
 	var pp = getOpenProfile();
 	if (pp == null) return "";
-	return pp.querySelector('name-tag span').firstChild.textContent.trim()
+	// The name-tag span can be missing or still empty while the popup renders - return ""
+	// rather than throw from inside the observer callback.
+	var span = pp.querySelector('name-tag span');
+	if (span == null || span.firstChild == null) return "";
+	return span.firstChild.textContent.trim();
 }
 
 function getOpenProfileBBOalertURL() {

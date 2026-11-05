@@ -892,8 +892,8 @@ var DAYLONG_DONE_COOLDOWN = 3600000;
 // Daily", landed here, and then reported "nothing to play" every two seconds - the list it
 // had been reading was no longer on screen, and nothing pressed PLAY.
 //
-// The URL is the reliable signal; the button is matched on an EXACT text of "play", which is
-// what separates it from the list's "Play now".
+// The URL is the reliable signal; the button is matched on an exact label ("play" or, since
+// 2026-11-05, "play now") - safe only because the list is not rendered on this URL.
 function onTournamentDetails() {
 	try {
 		return String((PWD.location && PWD.location.href) || '').indexOf('tournament-details') !== -1;
@@ -902,13 +902,17 @@ function onTournamentDetails() {
 	}
 }
 
-var DETAILS_PLAY_LABELS = ['play'];
+// 2026-11-05: BBO relabelled the details button "Play now" (same text as the list rows), so
+// an exact "play" no longer matched and every daily was given up on as "finished". This only
+// runs on a tournament-details URL, where the list is not rendered, so "play now" is safe here.
+var DETAILS_PLAY_LABELS = ['play', 'play now'];
 
 function detailsPlayButton() {
 	var override = localStorage.getItem('BRILL_DETAILS_PLAY_LABEL');
 	var labels = override ? [override.toLowerCase()] : DETAILS_PLAY_LABELS;
 	return $('button:visible', PWD).filter(function () {
-		return labels.indexOf(norm($(this).text()).toLowerCase()) !== -1;
+		var t = norm($(this).text()).toLowerCase().replace(/!+$/, '');
+		return labels.indexOf(t) !== -1;
 	}).first();
 }
 
