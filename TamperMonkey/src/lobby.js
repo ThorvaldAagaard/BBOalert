@@ -31,8 +31,12 @@
 // way a DOM-based check would.
 //
 // SETTINGS (page console):
-//   localStorage.BRILL_CHALLENGE_AUTOPLAY = '1'   actually enter challenges (default: off,
-//                                                 report only)
+//   the Brill pill, bottom right of the page, or __brillChallenge.mode('off'|'dailies'|'bm')
+//                                                 what the driver does: nothing (default),
+//                                                 challenges + daylongs, or Bridge Master.
+//                                                 Stored in BRILL_MODE; the old
+//                                                 BRILL_CHALLENGE_AUTOPLAY flag is only read
+//                                                 while BRILL_MODE is unset
 //   localStorage.BRILL_ALLOW_HUMAN = '1'          also play PK challenges against people
 //                                                 (default: robot challenges only)
 //   localStorage.BRILL_DAYLONGS = 'ben & friends, just declare'
@@ -44,7 +48,6 @@
 //                                                 tournament, if its panel holds more than one
 //   localStorage.BRILL_DAYLONG_LIST_URL           where the dailies list is; learned by the
 //                                                 driver the first time it sees that list
-//   delete localStorage.BRILL_CHALLENGE_AUTOPLAY  back to report-only
 
 var LOBBY = {
 	poll: 2000,      // ms between lobby checks
@@ -68,7 +71,8 @@ var challengeGone = {};  // tid -> true once BBO has removed its row: the match 
 var challengeMisses = {};// tid -> consecutive ticks we looked for that row and it was absent
 var challengeStalls = {};// tid -> {n, done}: how often it stalled at that count, for the backoff
 
-function autoPlay() { return localStorage.getItem('BRILL_CHALLENGE_AUTOPLAY') === '1'; }
+// The challenge/daylong driver runs in mode "tourneys" only (see brillMode below).
+function autoPlay() { return brillMode() === 'tourneys'; }
 
 // Human ("PK") challenges are OFF unless explicitly enabled. Robot challenges need no flag.
 // Separate from autoplay on purpose: turning the driver on should never, by itself, start it
@@ -907,13 +911,47 @@ function onTournamentDetails() {
 // runs on a tournament-details URL, where the list is not rendered, so "play now" is safe here.
 var DETAILS_PLAY_LABELS = ['play', 'play now'];
 
+// The same day BBO's new tournament lobby stopped rendering it as a plain <button> we could
+// find with 'button:visible'. So match on text, whatever the tag: the INNERMOST visible
+// element whose whole text is the label (a click there bubbles up to the real handler), and
+// prefer a real button/link ancestor when there is one.
+var detailsProbeLogged = null;
+
 function detailsPlayButton() {
 	var override = localStorage.getItem('BRILL_DETAILS_PLAY_LABEL');
 	var labels = override ? [override.toLowerCase()] : DETAILS_PLAY_LABELS;
-	return $('button:visible', PWD).filter(function () {
-		var t = norm($(this).text()).toLowerCase().replace(/!+$/, '');
-		return labels.indexOf(t) !== -1;
+	function label(el) { return norm($(el).text()).toLowerCase().replace(/!+$/, ''); }
+
+	var hit = $('*:visible', PWD).filter(function () {
+		if (labels.indexOf(label(this)) === -1) return false;
+		// innermost: no child carries the same label
+		for (var i = 0; i < this.children.length; i++) {
+			if (labels.indexOf(label(this.children[i])) !== -1) return false;
+		}
+		return true;
 	}).first();
+	if (hit.length) {
+		var btn = hit.closest('button, a, [role="button"]');
+		return btn.length ? btn : hit;
+	}
+
+	// Not found: say once per page what play-ish things ARE there, so the next markup change
+	// shows up in the log instead of as a silent "no PLAY button".
+	var here = pagePath();
+	if (detailsProbeLogged !== here) {
+		detailsProbeLogged = here;
+		var seen = [];
+		$('*:visible', PWD).each(function () {
+			var t = label(this);
+			if (t.length < 20 && t.indexOf('play') !== -1 && seen.length < 8) {
+				seen.push('<' + this.tagName.toLowerCase() + (this.className ? ' class="' +
+					String(this.className).slice(0, 60) + '"' : '') + '> "' + t + '"');
+			}
+		});
+		lobbyLog('details page: no element labelled ' + JSON.stringify(labels) +
+			'; play-ish elements: ' + (seen.length ? seen.join(', ') : 'none'));
+	}
+	return $();
 }
 
 // Gated on the page itself naming an allowlisted tournament, not on what we clicked a moment
@@ -946,7 +984,7 @@ function playFromDetails() {
 	} else {
 		var b = detailsPlayButton();
 		if (b.length) {
-			lobbyLog('details page for "' + pat + '" - clicking PLAY');
+			lobbyLog('details page for "' + pat + '" - clicking PLAY (<' + b[0].tagName.toLowerCase() + '> "' + norm(b.text()) + '")');
 			lastLobbyLog = '';
 			detailsNoPlaySince = 0;
 			detailsGaveUp = null;
@@ -1215,11 +1253,395 @@ function ensureObserver() {
 	}
 }
 
+// ---------------------------------------------------------------- Bridge Master
+//
+// Practice > Bridge Master (/v3/app/lv/practice) is an ordinary bridge-screen, so the play
+// engine attaches as usual - but the table has NO vul-panel, and the vul-panel is where
+// getDealNumber() reads the board number. Verified live on Level 3 A-1:
+//
+//   getDealNumber() ''   -> tableType() 'no', and PlayWithBrill's getDealerDirection()
+//                           ("NESW".charAt((dealno-1)%4)) gives '' -> /play 400 "Invalid dealer"
+//   getContext()    '2C--2D--2S--4S--6S------'   (the auction is there and reads fine)
+//
+// Rather than teach every dealer/vul consumer about Bridge Master, getDealNumber() returns a
+// SYNTHETIC board number on that screen, chosen so that everything derived from it is right:
+//
+//   dealer  - (n-1)%4 - worked back from the auction: the declarer (always us: Bridge Master
+//             is declarer play) made the first bid of the final strain on our side
+//   vul     - (n-1)%16 lands on a board where nobody is vulnerable; the screen does not say
+//   unique  - + 16 * a serial from the problem id ("Level 3 A-1"), so the next problem is a
+//             new deal number even with the same dealer, and onNewDeal fires
+//
+// The number appears only once the auction is complete (ends in three passes), so the
+// observer never sees a half-drawn problem as a deal.
+var BM_BASE = { N: 1, E: 14, S: 11, W: 8 };   // the boards 1-16 with that dealer and vul None
+var bmCache = { key: null, value: '' };
+
+function bmPanel() { return $('bridge-master-panel:visible', PWD); }
+function onBridgeMaster() { return bmPanel().length > 0; }
+
+// "Bridge Master Level 3 A-1 Show solution Next deal ..." -> "3 A-1". Matched on the shape,
+// not on the word "Level", so a localised UI still works.
+function bmProblemId() {
+	var m = norm(bmPanel().text()).match(/(\d+)\s*([A-Z])\s*-\s*(\d+)/i);
+	return m ? m[1] + ' ' + m[2].toUpperCase() + '-' + m[3] : '';
+}
+
+function bmSerial(id) {
+	var m = id.match(/^(\d+) ([A-Z])-(\d+)$/);
+	if (!m) return 0;
+	return parseInt(m[1], 10) * 10000 + (m[2].charCodeAt(0) - 64) * 100 + parseInt(m[3], 10);
+}
+
+function bmDeclarer() {
+	var d = '';
+	try { if (typeof getDeclarerDirection === 'function') d = getDeclarerDirection(); } catch (e) { }
+	if ('NESW'.indexOf(d) >= 0 && d.length === 1) return d;
+	return mySeat();                  // Bridge Master always makes us declarer
+}
+
+// Dealer from a complete auction and the declarer's seat.
+function bmDealer(ctx, decl) {
+	if (!ctx || ctx.length % 2 || !/------$/.test(ctx) || decl.length !== 1 || 'NESW'.indexOf(decl) < 0) return '';
+	var calls = ctx.match(/../g), last = -1, i;
+	for (i = 0; i < calls.length; i++) if (!/^(--|Db|Rd)$/.test(calls[i])) last = i;
+	if (last < 0) return '';
+	var strain = calls[last].charAt(1);
+	for (i = last % 2; i <= last; i += 2) {
+		if (calls[i].charAt(1) === strain) return 'NESW'.charAt((('NESW'.indexOf(decl) - i) % 4 + 4) % 4);
+	}
+	return '';
+}
+
+function bmDealNumber() {
+	var id = bmProblemId(), ctx = getContext(), decl = bmDeclarer();
+	var key = id + '|' + ctx + '|' + decl;
+	if (key === bmCache.key) return bmCache.value;
+	var dealer = bmDealer(ctx, decl);
+	var value = (id && dealer) ? String(BM_BASE[dealer] + 16 * bmSerial(id)) : '';
+	bmCache = { key: key, value: value };
+	if (value) lobbyLog('Bridge Master ' + id + ': ' + ctx + ', declarer ' + decl + ', dealer ' + dealer +
+		' -> deal number ' + value);
+	return value;
+}
+
+// OVERRIDES BBO_DOM.js's getDealNumber (the later declaration in this scope wins - the same
+// mechanism the shim uses for onNavDivDisplayed). Unchanged wherever a vul-panel exists.
+function getDealNumber() {
+	var n = $('.vulPanelInnerPanelClass', getNavDiv()).text().trim();
+	if (n !== '') return n;
+	return onBridgeMaster() ? bmDealNumber() : '';
+}
+
+// Moving on. A problem is over when BBO shows its end panel, or the play engine has finished
+// the deal; failing both, when nothing on the table has moved for a minute (a problem BBO
+// ends early, or one we cannot play) - that one is logged loudly. Then "Next deal".
+// localStorage.BRILL_BM_AUTONEXT = '0' leaves it on screen instead.
+var BM_NEXT_LABELS = ['next deal'];
+var BM_END_WAIT_MS = 4000;    // let the last /play go out and the result be seen
+var BM_STALL_MS = 60000;
+var BM_NO_MOVE_MS = 15000;    // Next pressed and still the same problem: end of the set
+var bm = { id: null, key: '', since: 0, endSeen: 0, nextAt: 0, warned: false };
+
+function bmAutoNext() { return localStorage.getItem('BRILL_BM_AUTONEXT') !== '0'; }
+
+function visibleButtonLabels() {
+	return $('button:visible, [role="button"]:visible', PWD).map(function () {
+		return norm($(this).text());
+	}).get().filter(Boolean).join(' | ');
+}
+
+function bmNextButton() {
+	var override = localStorage.getItem('BRILL_BM_NEXT_LABEL');
+	var labels = override ? [override.toLowerCase()] : BM_NEXT_LABELS;
+	return $('button:visible, [role="button"]:visible', PWD).filter(function () {
+		return labels.indexOf(norm($(this).text()).toLowerCase()) !== -1;
+	}).first();
+}
+
+// deal-end-panel / game-over-panel are laid out (":visible") from the moment a Bridge Master
+// problem appears - in 0.10.0 that made every problem "over" at once and the driver skipped
+// through the whole set. So only a CHANGE in their text since the problem started counts.
+// The verdict banner Bridge Master draws over the table: "Contract Made" (seen live, with a
+// star). Looked for anywhere on the table rather than only in the end panels, because which
+// element carries it is not known. Short text naming the contract and a verdict, innermost.
+var BM_BANNER = /\bcontract\b.{0,20}\b(made|fail(ed)?|defeated|down|set)\b/i;
+
+function bmBannerText() {
+	var hit = $('bridge-screen *:visible', PWD).filter(function () {
+		var t = norm($(this).text());
+		if (t.length > 40 || !BM_BANNER.test(t)) return false;
+		for (var i = 0; i < this.children.length; i++) {
+			if (BM_BANNER.test(norm($(this.children[i]).text()))) return false;
+		}
+		return true;
+	}).first();
+	return hit.length ? norm(hit.text()) : '';
+}
+
+function bmEndPanelText() {
+	var panel = norm($('deal-end-panel:visible, game-over-panel:visible', PWD).text());
+	var banner = bmBannerText();
+	return banner && panel.indexOf(banner) === -1 ? (banner + ' ' + panel).trim() : panel;
+}
+
+function bmEndReason() {
+	var endText = bmEndPanelText();
+	if (endText && endText !== bm.endTextAtStart) return 'end panel: "' + endText.slice(0, 120) + '"';
+	if (typeof deal !== 'undefined' && deal && deal.finished && String(deal.number) === getDealNumber()) {
+		return 'deal finished';
+	}
+	var key = getContext() + '|' + $('hand-diagram-card:visible, hand-diagram-current-trick-card:visible', PWD).length +
+		'|' + $('#navDiv .nameBarClass:visible', PWD).map(function () { return this.style.backgroundColor; }).get().join();
+	if (key !== bm.key) { bm.key = key; bm.since = Date.now(); return ''; }
+	var busy = typeof playInProgress !== 'undefined' && playInProgress;
+	if (!busy && Date.now() - bm.since > BM_STALL_MS) return 'NOTHING MOVED FOR ' + (BM_STALL_MS / 1000) + 's';
+	return '';
+}
+
+// ---- results ------------------------------------------------------------------
+//
+// One record per problem in localStorage.BRILL_BM_RESULTS, keyed by id ("3 A-1"). Bridge
+// Master counts the FIRST attempt, so that is kept apart from the latest one: a problem
+// replayed after reading the solution does not turn a failure into a success.
+//
+// made/failed is read from the end-panel wording, which has not been seen yet in English -
+// anything the patterns miss is stored as 'unknown' WITH the raw text, so the first
+// unknown in the log is what to extend BM_MADE / BM_FAILED with.
+var BM_RESULTS_KEY = 'BRILL_BM_RESULTS';
+var BM_LEVEL_SIZE = { 1: 66 };          // problems per level, where known
+var BM_FAILED = /\b(down|fail(ed|ure)?|sorry|defeated|went off|unsuccessful|not made|did not make)\b/i;
+var BM_MADE = /\b(made|making|success(ful)?|succeeded|well done|congratulations|correct|solved)\b/i;
+
+function bmLoadResults() {
+	try { return JSON.parse(localStorage.getItem(BM_RESULTS_KEY) || '{}') || {}; } catch (e) { return {}; }
+}
+
+function bmSaveResults(r) {
+	try { localStorage.setItem(BM_RESULTS_KEY, JSON.stringify(r)); } catch (e) { lobbyLog('could not save results: ' + e); }
+}
+
+function bmClassify(text, why) {
+	if (/^NOTHING MOVED/.test(why)) return 'stalled';
+	if (BM_FAILED.test(text)) return 'failed';
+	if (BM_MADE.test(text)) return 'made';
+	return 'unknown';
+}
+
+function bmRecord(id, why) {
+	if (!id) return;
+	var text = bmEndPanelText();
+	var result = bmClassify(text, why);
+	var played = (typeof deal !== 'undefined' && deal && deal.played) ? deal.played.join(' ') : '';
+	var all = bmLoadResults();
+	var prev = all[id];
+	var level = parseInt(id, 10);
+	all[id] = {
+		level: level,
+		first: prev ? prev.first : result,
+		last: result,
+		attempts: (prev ? prev.attempts : 0) + 1,
+		at: new Date().toISOString(),
+		contract: norm($('.tricksPanelTricksLabelClass:visible', PWD).text()),
+		ctx: getContext(),
+		text: text.slice(0, 300),
+		why: why,
+		played: played
+	};
+	bmSaveResults(all);
+	var s = bmSummary()[level] || {};
+	lobbyLog('Bridge Master ' + id + ': ' + result.toUpperCase() +
+		(prev ? ' (attempt ' + all[id].attempts + ', first was ' + prev.first + ')' : '') +
+		' - level ' + level + ' so far: ' + s.made + ' made, ' + s.failed + ' failed' +
+		(s.other ? ', ' + s.other + ' unknown/stalled' : '') + ' of ' + (s.size || '?') +
+		(result === 'unknown' ? '  <- end text not recognised: "' + text.slice(0, 160) + '"' : ''));
+}
+
+// Per level, counting first attempts.
+function bmSummary() {
+	var all = bmLoadResults(), out = {};
+	Object.keys(all).forEach(function (id) {
+		var r = all[id], L = r.level;
+		if (!out[L]) out[L] = { played: 0, made: 0, failed: 0, other: 0, size: BM_LEVEL_SIZE[L] || null, failedIds: [] };
+		out[L].played++;
+		if (r.first === 'made') out[L].made++;
+		else if (r.first === 'failed') { out[L].failed++; out[L].failedIds.push(id); }
+		else out[L].other++;
+	});
+	Object.keys(out).forEach(function (L) {
+		out[L].failedIds.sort(function (a, b) { return bmSerial(a) - bmSerial(b); });
+	});
+	return out;
+}
+
+function bridgeMasterTick() {
+	if (!onBridgeMaster()) { bm.id = null; return; }
+	var id = bmProblemId();
+	if (id !== bm.id) {
+		bm = { id: id, key: '', since: Date.now(), endSeen: 0, nextAt: 0, warned: false,
+			endTextAtStart: bmEndPanelText() };
+		if (bm.endTextAtStart) lobbyLog('Bridge Master ' + id + ': end panel already says "' +
+			bm.endTextAtStart.slice(0, 120) + '" - ignoring that');
+		return;
+	}
+	// What to do when the problem is over depends on the mode:
+	//   bm        Next deal (unless BRILL_BM_AUTONEXT = '0')
+	//   tourneys  finish this problem, then back to the lobby for challenges and dailies
+	//   off       nothing - but the result is still recorded
+	var mode = brillMode();
+	var leaving = mode === 'tourneys';
+	if (!leaving && !(mode === 'bm' && bmAutoNext())) {
+		var w = bm.endSeen ? '' : bmEndReason();
+		if (w) { bm.endSeen = Date.now(); bmRecord(id, w); }
+		return;
+	}
+	if (bm.nextAt) {
+		if (!bm.warned && Date.now() - bm.nextAt > BM_NO_MOVE_MS) {
+			bm.warned = true;
+			lobbyLog('Bridge Master: pressed Next deal on ' + id + ' and it is still showing - end of ' +
+				'the set? Pick the next one with Select deal. Buttons: ' + visibleButtonLabels());
+		}
+		return;
+	}
+	var why = bmEndReason();
+	if (!why) return;
+	if (!bm.endSeen) {
+		bm.endSeen = Date.now();
+		lobbyLog('Bridge Master ' + id + ' over (' + why + ')');
+		bmRecord(id, why);
+		return;
+	}
+	if (Date.now() - bm.endSeen < BM_END_WAIT_MS) return;
+	if (leaving) {
+		var lb = lobbyButton();
+		lobbyLog('Bridge Master ' + id + ' done; mode is Dailies - back to the lobby' + (lb.length ? '' : ' (no Lobby button - going home)'));
+		bm.nextAt = Date.now();
+		if (lb.length) lb[0].click(); else gotoPath('/v3/');
+		return;
+	}
+	var b = bmNextButton();
+	if (!b.length) {
+		if (!bm.warned) {
+			bm.warned = true;
+			lobbyLog('Bridge Master ' + id + ': no "Next deal" button. Buttons: ' + visibleButtonLabels() +
+				' - set localStorage.BRILL_BM_NEXT_LABEL to the right one');
+		}
+		return;
+	}
+	lobbyLog('Bridge Master ' + id + ' - pressing Next deal');
+	bm.nextAt = Date.now();
+	b[0].click();
+}
+
+// ---------------------------------------------------------------- mode switch
+//
+// One switch for what the driver does when it is free to choose:
+//   off       nothing (Brill still plays any table you sit it at)
+//   tourneys  "Dailies": robot challenges and allowlisted daylongs - the old autoplay
+//   bm        Bridge Master: stay there, Next deal after each problem
+// Stored in localStorage.BRILL_MODE. BRILL_CHALLENGE_AUTOPLAY is kept in step, so a script
+// with no BRILL_MODE yet starts in whatever the old flag said.
+var MODES = ['off', 'tourneys', 'bm'];
+var MODE_LABEL = { off: 'Off', tourneys: 'Dailies', bm: 'Bridge Master' };
+var PRACTICE_PATH = '/v3/app/lv/practice';
+var bmGoAt = 0;
+var bmPickHinted = false;
+
+function brillMode() {
+	var m = localStorage.getItem('BRILL_MODE');
+	if (MODES.indexOf(m) >= 0) return m;
+	return localStorage.getItem('BRILL_CHALLENGE_AUTOPLAY') === '1' ? 'tourneys' : 'off';
+}
+
+function setBrillMode(m) {
+	if (MODES.indexOf(m) < 0) return brillMode();
+	localStorage.setItem('BRILL_MODE', m);
+	if (m === 'tourneys') localStorage.setItem('BRILL_CHALLENGE_AUTOPLAY', '1');
+	else localStorage.removeItem('BRILL_CHALLENGE_AUTOPLAY');
+	bmGoAt = 0; bmPickHinted = false; lastLobbyLog = ''; idleOffListSince = 0;
+	lobbyLog('mode: ' + MODE_LABEL[m] + (m === 'tourneys' && onBridgeMaster() ?
+		' - leaving Bridge Master after this problem' : ''));
+	updateModeButton();
+	return m;
+}
+
+function lobbyButton() {
+	return $('button:visible, [role="button"]:visible', PWD).filter(function () {
+		return /lobby/i.test(norm($(this).text()));
+	}).first();
+}
+
+// Where to pick up: the highest problem played on the highest level reached.
+function bmLastPlayed() {
+	var all = bmLoadResults(), best = '';
+	Object.keys(all).forEach(function (id) { if (!best || bmSerial(id) > bmSerial(best)) best = id; });
+	return best;
+}
+
+// Bridge Master mode, away from a table. Get to the practice page (never leaving a table to
+// do it - a challenge in progress finishes first), then say what to pick: which deal to open
+// is a choice BBO's Select deal dialog makes, and that dialog has not been mapped.
+function bmModeIdle() {
+	if (pagePath().indexOf(PRACTICE_PATH) !== 0) {
+		if (Date.now() - bmGoAt < 30000) return;
+		bmGoAt = Date.now();
+		lobbyLog('mode Bridge Master - going to Practice');
+		gotoPath(PRACTICE_PATH);
+		return;
+	}
+	if (!bmPickHinted) {
+		bmPickHinted = true;
+		var last = bmLastPlayed();
+		lobbyLog('mode Bridge Master - open Bridge Master and pick a deal' +
+			(last ? ' (last played: ' + last + ')' : '') + '; from there it carries on by itself');
+	}
+}
+
+// The on-page switch: a small pill bottom-right. Click cycles Off -> Dailies -> Bridge Master.
+function modeButtonText() {
+	var m = brillMode(), t = 'Brill: ' + MODE_LABEL[m];
+	if (m === 'bm') {
+		var id = onBridgeMaster() ? bmProblemId() : '';
+		var s = bmSummary()[id ? parseInt(id, 10) : parseInt(bmLastPlayed(), 10)];
+		if (s) t += '  ' + s.made + '/' + s.played;
+	}
+	return t;
+}
+
+var MODE_COLORS = { off: '#666', tourneys: '#1b7f3b', bm: '#2f52b8' };
+
+function updateModeButton() {
+	var b = document.getElementById('brill-mode-switch');
+	if (!b) return;
+	var m = brillMode(), t = modeButtonText();
+	if (b.textContent !== t) b.textContent = t;
+	b.style.background = MODE_COLORS[m];
+}
+
+function ensureModeButton() {
+	if (localStorage.getItem('BRILL_HIDE_SWITCH') === '1') return;
+	if (!document.body || document.getElementById('brill-mode-switch')) { updateModeButton(); return; }
+	var b = document.createElement('div');
+	b.id = 'brill-mode-switch';
+	b.title = 'Click to switch: Off -> Dailies (challenges + daylongs) -> Bridge Master';
+	b.style.cssText = 'position:fixed;right:8px;bottom:8px;z-index:2147483000;padding:4px 10px;' +
+		'border-radius:12px;color:#fff;font:600 13px/1.4 sans-serif;cursor:pointer;user-select:none;' +
+		'box-shadow:0 1px 4px rgba(0,0,0,.4);opacity:.9';
+	b.addEventListener('click', function () {
+		var m = brillMode();
+		setBrillMode(MODES[(MODES.indexOf(m) + 1) % MODES.length]);
+	});
+	document.body.appendChild(b);
+	updateModeButton();
+}
+
 function lobbyTick() {
 	ensureObserver();
 	if (!scriptList.length && BRILL_SCRIPTS.length) setScriptList();   // backstop
+	try { ensureModeButton(); } catch (e) { }
 	if (lobbyBusy) return;
 	if (atTable()) {
+		if (onBridgeMaster()) { bridgeMasterTick(); idleOffListSince = 0; return; }
 		// PlayWithBrill's hooks own the table from here; the only thing left to do is put
 		// the History pane up so the boards played are visible while it works.
 		showHistoryPane();
@@ -1228,6 +1650,7 @@ function lobbyTick() {
 		idleOffListSince = 0;
 		return;
 	}
+	if (brillMode() === 'bm') { bmModeIdle(); return; }
 	historyPaneShown = false;          // back in the lobby - arm it for the next match
 	if (onChallengeList()) {
 		challengeListPath = pagePath();
@@ -1624,9 +2047,15 @@ window.__brillChallenge = {
 
 	autoplay: function (on) {
 		if (on === undefined) return autoPlay();
-		if (on) localStorage.setItem('BRILL_CHALLENGE_AUTOPLAY', '1');
-		else localStorage.removeItem('BRILL_CHALLENGE_AUTOPLAY');
+		setBrillMode(on ? 'tourneys' : 'off');
 		return autoPlay();
+	},
+	// 'off' | 'tourneys' (Dailies) | 'bm' (Bridge Master); no argument = current mode.
+	mode: function (m) {
+		if (m === undefined) return brillMode();
+		if (m === 'dailies') m = 'tourneys';
+		if (m === 'bridgemaster' || m === 'bridge master') m = 'bm';
+		return setBrillMode(m);
 	},
 	where: function () {
 		return { list: onChallengeList(), table: atTable(), details: detailsPanel().length > 0 };
@@ -1674,6 +2103,49 @@ window.__brillDom = {
 	dealNumber: function () { return getDealNumber(); },
 	tableType: function () { return tableType(); },
 	context: function () { return getContext(); },
+	// Bridge Master: what the synthetic deal number was built from.
+	bridgeMaster: function () {
+		var id = bmProblemId(), ctx = getContext(), decl = bmDeclarer();
+		return { on: onBridgeMaster(), id: id, ctx: ctx, declarer: decl, dealer: bmDealer(ctx, decl),
+			dealNumber: getDealNumber(), autoNext: bmAutoNext(), state: bm, next: bmNextButton().length > 0 };
+	},
+	// Bridge Master score: per-level summary (first attempts), or one level's problems.
+	//   __brillDom.bmResults()        {1: {played, made, failed, other, size, failedIds}, ...}
+	//   __brillDom.bmResults(1)       table of every level-1 problem played
+	bmResults: function (level) {
+		if (level == null) {
+			var s = bmSummary();
+			console.table(Object.keys(s).map(function (L) {
+				var x = s[L];
+				return { level: +L, played: x.played, of: x.size || '?', made: x.made, failed: x.failed,
+					other: x.other, pct: x.played ? Math.round(100 * x.made / x.played) + '%' : '' };
+			}));
+			return s;
+		}
+		var all = bmLoadResults();
+		var rows = Object.keys(all).filter(function (id) { return all[id].level === +level; })
+			.sort(function (a, b) { return bmSerial(a) - bmSerial(b); })
+			.map(function (id) { var r = all[id]; return { id: id, first: r.first, last: r.last,
+				attempts: r.attempts, contract: r.contract, text: r.text.slice(0, 80) }; });
+		console.table(rows);
+		return rows;
+	},
+	// Download everything as JSON (auction, Brill's play and the end text per problem).
+	bmExport: function () {
+		var a = document.createElement('a');
+		a.href = URL.createObjectURL(new Blob([JSON.stringify(bmLoadResults(), null, 1)], { type: 'application/json' }));
+		a.download = 'bridge-master-results-' + new Date().toISOString().slice(0, 10) + '.json';
+		document.body.appendChild(a); a.click(); a.remove();
+	},
+	// Fix one result by hand (when the end text was not recognised), or wipe them all.
+	bmMark: function (id, result) {
+		var all = bmLoadResults();
+		if (!all[id]) return 'no record for ' + id;
+		all[id].first = all[id].last = result;
+		bmSaveResults(all);
+		return all[id];
+	},
+	bmReset: function () { localStorage.removeItem(BM_RESULTS_KEY); return 'cleared'; },
 	activePlayer: function () { return getActivePlayer(); },
 	scripts: function () { return scriptList.length; },
 	hooks: function () {

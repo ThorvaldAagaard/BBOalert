@@ -1378,6 +1378,16 @@ BrillsTurnToPlay = function (overlay) {
 		if (typeof initdeal === "function") initdeal();
 	}
 	try {
+		// No deal number = no deal on screen yet. Bridge Master hits this between problems: the
+		// turn marker is up before the auction is drawn, and a /lead from that state goes out
+		// with no hand and no dealer and comes back 400.
+		if (getDealNumber() == '') {
+			console.log(getNow(true) + " BrillsTurnToPlay aborted - no deal number on screen yet");
+			overlay = removeSpinner(overlay);
+			playInProgress = false;
+			lastPlayKey = null;
+			return;
+		}
 		// State may have advanced while this call was deferred - bail if it's no longer our turn
 		if (!isMyTurnToPlay()) {
 			console.log(getNow(true) + " BrillsTurnToPlay aborted - no longer my turn to play");
@@ -1889,7 +1899,10 @@ savedeal = function (dealnumber, deal) {
 }
 
 getTournamentType = function() {
-	let text = $("#navDiv score-panel, #navDiv .score-panel", parent.window.document).text().toLowerCase();
+	// Bridge Master is "make the contract": overtricks are worthless and safety plays are the
+	// point, which is IMP scoring. Its table has no score panel to read it from.
+	if ($("bridge-master-panel:visible", parent.window.document).length) return "IMP";
+	let text =$("#navDiv score-panel, #navDiv .score-panel", parent.window.document).text().toLowerCase();
 	if (text.indexOf("imp") > -1) return "IMP";
 	if (text.indexOf("mp") > -1) return "MP";
 	return "";

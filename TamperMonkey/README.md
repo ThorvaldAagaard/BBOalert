@@ -53,11 +53,22 @@ challenge sweep) and `Custom/PlayWithBrill.js` (parsed into `scriptList`). Build
 `src/iframe` rather than hand-copying means a selector fixed in the extension is fixed here on
 the next build.
 
-Auto-play is **opt-in**, like `CuebidsWithBrill`:
+Auto-play is **opt-in**, like `CuebidsWithBrill`. A small **Brill** pill at the bottom right of
+the page shows the mode; click it to cycle **Off -> Dailies -> Bridge Master**:
+
+- **Off** - the driver does nothing (Brill still plays any table you sit it at). The default.
+- **Dailies** - robot challenges and the allowlisted daylongs, as described below. Switched on
+  at a Bridge Master table, it finishes the problem in progress and goes back to the lobby.
+- **Bridge Master** - goes to Practice and, once you open a deal, works through the problems
+  with Next deal. Never leaves a challenge in progress to get there. The pill shows the
+  score for the level, e.g. `Brill: Bridge Master  12/18`.
 
 ```js
-localStorage.BRILL_CHALLENGE_AUTOPLAY = '1'   // actually enter challenges
-delete localStorage.BRILL_CHALLENGE_AUTOPLAY  // back to report-only (default)
+__brillChallenge.mode()            // 'off' | 'tourneys' | 'bm'
+__brillChallenge.mode('dailies')   // same as clicking the pill
+__brillChallenge.mode('bm')
+__brillChallenge.mode('off')
+localStorage.BRILL_HIDE_SWITCH = '1'  // no pill
 __brillChallenge.todo()    // what it thinks is playable
 __brillChallenge.where()   // {list, table, details}
 __brillDom.whoAmI()        // check the vendored BBOalert layer is alive
@@ -256,3 +267,46 @@ localStorage.BRILL_CHALLENGES_LABEL = 'Udfordringer'
 __brillChallenge.nav()       // what the matcher currently finds, or null
 __brillChallenge.openList()  // open the challenge list without enabling autoplay
 ```
+
+### Bridge Master
+
+Open **Practice > Bridge Master** (`/v3/app/lv/practice`), pick a level and start a deal. Brill
+declares, and when a problem is over the driver presses **Next deal** by itself.
+
+That table has no vulnerability panel, which is where the board number normally comes from, so
+there was no dealer and every `/play` failed with 400 "Invalid dealer". On that screen
+`getDealNumber()` now returns a synthetic number: the dealer is worked back from the auction
+(you are always declarer), vulnerability is None (the screen does not show it), and the problem
+id ("Level 3 A-1") keeps each problem distinct. Scoring is sent as IMPs, since only making the
+contract counts.
+
+A problem counts as over when the text of BBO's end panel changes (the panel itself is on
+screen from the start), when the play engine finishes the deal,
+or, as a fallback that is logged loudly, when nothing has moved for 60 seconds.
+
+```js
+__brillDom.bridgeMaster()                    // id, auction, declarer, dealer, deal number
+localStorage.BRILL_BM_AUTONEXT  = '0'        // stay on each problem (default: move on)
+localStorage.BRILL_BM_NEXT_LABEL = 'Næste'   // if the button is not "Next deal"
+```
+
+At the end of a set, Next deal stops moving on; the console says so, and you choose the next
+set with **Select deal**.
+
+#### Results
+
+Every problem's result is kept in `localStorage.BRILL_BM_RESULTS`: made / failed, the attempt
+count, the auction, Brill's play and BBO's end text. Bridge Master counts the **first** attempt,
+so that one is kept separately; a retry after reading the solution does not turn a failure into
+a success.
+
+```js
+__brillDom.bmResults()          // per level: played, made, failed, % (first attempts)
+__brillDom.bmResults(1)         // every level-1 problem played
+__brillDom.bmExport()           // download it all as JSON
+__brillDom.bmMark('1 A-4', 'made')   // correct one by hand
+__brillDom.bmReset()            // start over
+```
+
+Made/failed is read from the wording of BBO's end panel. Text the patterns do not recognise is
+stored as `unknown`, with the text itself, and the console line says so.
