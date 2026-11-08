@@ -1369,18 +1369,23 @@ var BM_BANNER = /\bcontract\b.{0,20}\b(made|fail(ed)?|defeated|down|set)\b/i;
 
 function bmBannerText() {
 	var hit = $('bridge-screen *:visible', PWD).filter(function () {
-		var t = norm($(this).text());
+		var t = bmSplitWords(norm($(this).text()));
 		if (t.length > 40 || !BM_BANNER.test(t)) return false;
 		for (var i = 0; i < this.children.length; i++) {
 			if (BM_BANNER.test(norm($(this.children[i]).text()))) return false;
 		}
 		return true;
 	}).first();
-	return hit.length ? norm(hit.text()) : '';
+	return hit.length ? bmSplitWords(norm(hit.text())) : '';
 }
 
+// BBO's end box joins its texts with no space between elements ("Contract FailedPlay again
+// Leave table"), which defeats every  in the patterns below - all 13 Level 2 results went
+// down as "unknown". Split a lower-case letter running into a capital back apart first.
+function bmSplitWords(t) { return t.replace(/([a-z])([A-Z])/g, '$1 $2'); }
+
 function bmEndPanelText() {
-	var panel = norm($('deal-end-panel:visible, game-over-panel:visible', PWD).text());
+	var panel = bmSplitWords(norm($('deal-end-panel:visible, game-over-panel:visible', PWD).text()));
 	var banner = bmBannerText();
 	return banner && panel.indexOf(banner) === -1 ? (banner + ' ' + panel).trim() : panel;
 }
@@ -1533,6 +1538,48 @@ function bridgeMasterTick() {
 	b[0].click();
 }
 
+// Since 2026-11-07 a finished Bridge Master problem can end in a box of its own - "Contract
+// Failed / Play again / Leave table" - with the table and the Bridge Master panel gone
+// ("Deal removed"), so bridgeMasterTick never runs and nothing pressed Next deal. Away from
+// the panel, in Bridge Master mode: press a Next deal button if one is showing anywhere,
+// else the button named in localStorage.BRILL_BM_END_BUTTON; failing both, say once which
+// buttons there are, so the right one can be named.
+var bmEndBoxAt = 0, bmEndBoxLogged = '';
+function bmEndBoxTick() {
+	if (brillMode() !== 'bm' || !bmAutoNext() || onBridgeMaster()) return false;
+	var labels = visibleButtonLabels();
+	if (!/play again|leave table|next deal/i.test(labels)) return false;
+	if (Date.now() - bmEndBoxAt < 10000) return true;
+	var want = (localStorage.getItem('BRILL_BM_END_BUTTON') || '').toLowerCase();
+	var pick = $('button:visible, [role="button"]:visible', PWD).filter(function () {
+		var t = norm($(this).text()).toLowerCase();
+		return t === 'next deal' || (want && t === want);
+	}).first();
+	if (pick.length) {
+		bmEndBoxAt = Date.now();
+		lobbyLog('Bridge Master: end box - pressing "' + norm(pick.text()) + '"');
+		pick[0].click();
+		return true;
+	}
+	if (bmEndBoxLogged !== labels) {
+		bmEndBoxLogged = labels;
+		lobbyLog('Bridge Master: the problem ended in a box with no Next deal. Buttons: ' + labels +
+			'. Tell the script which one moves on: localStorage.BRILL_BM_END_BUTTON = '<label>'' +
+			' (tags on screen: ' + bmScreenTags() + ')');
+	}
+	return true;
+}
+
+// The custom elements on screen, for the log line above: which BBO screen this is.
+function bmScreenTags() {
+	var seen = {};
+	$('*:visible', PWD).each(function () {
+		var n = this.tagName.toLowerCase();
+		if (n.indexOf('-') > 0) seen[n] = 1;
+	});
+	return Object.keys(seen).slice(0, 40).join(' ');
+}
+
 // ---------------------------------------------------------------- mode switch
 //
 // One switch for what the driver does when it is free to choose:
@@ -1640,6 +1687,7 @@ function lobbyTick() {
 	if (!scriptList.length && BRILL_SCRIPTS.length) setScriptList();   // backstop
 	try { ensureModeButton(); } catch (e) { }
 	if (lobbyBusy) return;
+	if (bmEndBoxTick()) return;
 	if (atTable()) {
 		if (onBridgeMaster()) { bridgeMasterTick(); idleOffListSince = 0; return; }
 		// PlayWithBrill's hooks own the table from here; the only thing left to do is put

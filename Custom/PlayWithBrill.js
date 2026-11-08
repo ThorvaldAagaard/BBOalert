@@ -614,7 +614,38 @@ getSystemParams = function () {
 	var p = '';
 	if (ns) p += '&nsSystem=' + encodeURIComponent(ns);
 	if (ew) p += '&ewSystem=' + encodeURIComponent(ew);
+	var ext = getExternalSeats();
+	if (ext) p += '&external=' + ext;
+	if (getPlayObjective() === 'make') p += '&objective=make';
 	return p;
+}
+
+// objective=make: Bridge Master scores a problem as made or failed only, so Brill plays for the
+// contract and nothing else - no overtrick may cost make chance. Bridge Master Level 1 B-18
+// (6NT): on normal IMP scoring Brill cashed DK (4.13 IMPs, 70%) instead of starting clubs (1.97,
+// 73%), burning dummy's last return to hand. The service's /play docs describe the parameter.
+// Override: localStorage.BRILL_OBJECTIVE = 'make' (every table) or 'score' (never).
+getPlayObjective = function () {
+	var o = (localStorage.getItem('BRILL_OBJECTIVE') || '').toLowerCase();
+	if (o === 'make' || o === 'score') return o;
+	return $("bridge-master-panel:visible", parent.window.document).length ? 'make' : 'score';
+}
+
+// external= names the seats whose calls came from a human or a foreign engine; the sampler then
+// treats the HCP it infers from their bids as SOFT constraints instead of exact Brill ranges.
+// At a BBO table that is every seat but ours - partner and opponents are BBO robots - and in
+// Bridge Master it is all four, since BBO wrote the whole auction, ours included.
+// Without it, Bridge Master Level 1 B-30 (4S, DK lead) sampled layouts too kind to drawing
+// trumps: D2 led SQ by 0.19 IMP, inside the 0.3 planning gap, and the planner's "draw trump"
+// played SQ - down one. With external=EW the same request scores D2 3.15 / 92% against SQ
+// 1.56 / 83%, which is what GuiApp (which sends external) showed.
+// Override: localStorage.BRILL_EXTERNAL = 'EW' (or '' for none).
+getExternalSeats = function () {
+	var o = localStorage.getItem('BRILL_EXTERNAL');
+	if (o !== null) return o.toUpperCase().replace(/[^NESW]/g, '');
+	if ($("bridge-master-panel:visible", parent.window.document).length) return 'NESW';
+	var me = mySeat();
+	return 'NESW'.replace(me, '');
 }
 // Player naming for the saved PBN. The server stamps names on the board-saving calls (/play,
 // /claim, /pbn/finalize) into [North]/[East]/[South]/[West] and derives [Room] from the board

@@ -180,6 +180,41 @@ which leaves the nine ~263 MB `*.system.bin` files out (a 4.36 GB image against 
 `GIB.system.bin` is dropped into the container's `/app`, this parameter is accepted and
 quietly ignored.
 
+### Which seats are "external"
+
+Every call to the server also sends `external=` - the seats whose bids came from a human or
+another engine. The sampler then treats the points it infers from their bids as **soft**
+constraints instead of exact Brill ranges. At a BBO table that is every seat but ours (partner
+and opponents are BBO robots); in Bridge Master it is all four, because BBO wrote the whole
+auction.
+
+Without it the live service and GuiApp disagreed on the same position. GuiApp sends
+`external=`; the userscript did not. Bridge Master Level 1 B-30 (4S, DK lead) showed it:
+without `external`, D2 led SQ by 0.19 IMP, inside the 0.3 planning gap, so the planner's
+"draw trump" played SQ and went down. With `external=EW` it is D2 3.15 IMP / 92% against SQ
+1.56 / 83%, as GuiApp showed.
+
+```js
+localStorage.BRILL_EXTERNAL = 'EW'   // override
+localStorage.BRILL_EXTERNAL = ''     // send none
+delete localStorage.BRILL_EXTERNAL   // automatic (default)
+```
+
+### Playing to make the contract (Bridge Master)
+
+Bridge Master scores a problem only as made or failed. On Bridge Master tables the script
+sends `objective=make`, so the server ranks cards by how often they make the contract:
+overtricks are worth nothing. With normal IMP scoring Brill gave up make chance for
+overtricks. In Level 1 B-18 (6NT) it cashed DK (4.13 IMP, 70%) instead of starting clubs
+(1.97 IMP, 73%), which used up dummy's last way back to hand. This needs a Brill.Service build
+that knows `objective=make`; an older server ignores the parameter.
+
+```js
+localStorage.BRILL_OBJECTIVE = 'make'    // every table
+localStorage.BRILL_OBJECTIVE = 'score'   // never, not even Bridge Master
+delete localStorage.BRILL_OBJECTIVE      // automatic (default)
+```
+
 ### Background tabs and timer throttling
 
 Everything the script does is timer-driven - the 2s lobby tick, the settle delays, the play
