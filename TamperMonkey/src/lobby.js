@@ -280,8 +280,9 @@ function harvestFrom(url, text) {
 			this.__brillUrl = url;
 			return open.apply(this, arguments);
 		};
-		NativeXHR.prototype.send = function () {
+		NativeXHR.prototype.send = function (body) {
 			var xhr = this;
+			try { bmWatchUdApi(xhr.__brillUrl, body, xhr); } catch (e) { }
 			xhr.addEventListener('load', function () {
 				try {
 					var rt = xhr.responseType;
@@ -1449,6 +1450,8 @@ function bmRecord(id, why) {
 		at: new Date().toISOString(),
 		contract: norm($('.tricksPanelTricksLabelClass:visible', PWD).text()),
 		ctx: getContext(),
+		key: bm.dealKey || bmDealKey(),
+		server: bmServerName(),
 		text: text.slice(0, 300),
 		why: why,
 		played: played
@@ -1484,7 +1487,7 @@ function bridgeMasterTick() {
 	var id = bmProblemId();
 	if (id !== bm.id) {
 		bm = { id: id, key: '', since: Date.now(), endSeen: 0, nextAt: 0, warned: false,
-			endTextAtStart: bmEndPanelText() };
+			endTextAtStart: bmEndPanelText(), dealKey: bmDealKey() };
 		if (bm.endTextAtStart) lobbyLog('Bridge Master ' + id + ': end panel already says "' +
 			bm.endTextAtStart.slice(0, 120) + '" - ignoring that');
 		return;
@@ -1524,6 +1527,7 @@ function bridgeMasterTick() {
 		if (lb.length) lb[0].click(); else gotoPath('/v3/');
 		return;
 	}
+	if (bmReplayActive()) { bm.nextAt = Date.now(); bmReplayAdvance(id); return; }
 	var b = bmNextButton();
 	if (!b.length) {
 		if (!bm.warned) {
@@ -1550,7 +1554,8 @@ function bmEndBoxTick() {
 	var labels = visibleButtonLabels();
 	if (!/play again|leave table|next deal/i.test(labels)) return false;
 	if (Date.now() - bmEndBoxAt < 10000) return true;
-	var want = (localStorage.getItem('BRILL_BM_END_BUTTON') || '').toLowerCase();
+	if (bmReplayActive()) { bmEndBoxAt = Date.now(); bmReplayAdvance(bm.id); return true; }
+	var want =(localStorage.getItem('BRILL_BM_END_BUTTON') || '').toLowerCase();
 	var pick = $('button:visible, [role="button"]:visible', PWD).filter(function () {
 		var t = norm($(this).text()).toLowerCase();
 		return t === 'next deal' || (want && t === want);
@@ -1578,6 +1583,274 @@ function bmScreenTags() {
 		if (n.indexOf('-') > 0) seen[n] = 1;
 	});
 	return Object.keys(seen).slice(0, 40).join(' ');
+}
+
+// ---------------------------------------------------------------- BBO's own Bridge Master record
+//
+// BBO keeps the stars and crosses on its server: one key-value entry, bm_results, read and
+// written through POST https://webutil.bridgebase.com/v2/ud_api.php with c=kvget / c=kvset,
+// u=<user>, sp=<session password>, k=bm_results, v="1A-1Y|3A-1N|..." (Y made, N failed).
+// BBO reads it once per login (when the Bridge Master dialog first opens) and writes the
+// whole list back after every problem. Watching those calls gives us u and sp, so the
+// settings panel can send the same request with v empty - the reset. The page still holds
+// the old list in memory and would write it back after the next problem, so a reset always
+// reloads the page straight away.
+//
+// Which problem is open is BBO's setting <user>_bm_deal in localStorage (with <user>_bm_level);
+// "Next deal" and "Select deal" both write it. Setting the two and reloading makes BBO open
+// Bridge Master on that problem - which is how "Replay failed" gets back to a problem.
+var bmUdApi = null;        // { url, body } of the last bm_results call seen this session
+var bmBboList = null;      // BBO's results string as last loaded or saved
+
+function bmWatchUdApi(url, body, xhr) {
+	url = String(url || '');
+	if (url.indexOf('ud_api.php') < 0) return;
+	var q = typeof body === 'string' ? body : (url.split('?')[1] || '');
+	if (q.indexOf('bm_results') < 0) return;
+	var p = new URLSearchParams(q);
+	bmUdApi = { url: url, body: q, get: typeof body !== 'string' };
+	if (p.get('c') === 'kvset') bmBboList = p.get('v') || '';
+	if (p.get('c') === 'kvget') xhr.addEventListener('load', function () {
+		try { var m = /\bv="([^"]*)"/.exec(xhr.responseText || ''); if (m) bmBboList = m[1]; } catch (e) { }
+	});
+}
+
+function bmUserKey(name) { return myName() + '_' + name; }
+function bmDealKey() { try { return localStorage.getItem(bmUserKey('bm_deal')) || ''; } catch (e) { return ''; } }
+
+function bmServerName() {
+	try { return typeof getBrillBaseUrl === 'function' ? getBrillBaseUrl() : ''; } catch (e) { return ''; }
+}
+
+// Clear BBO's stars and crosses. cb(error) - on success the page reloads instead.
+function bmResetBbo(alsoOurs, cb) {
+	if (!bmUdApi) {
+		cb('BBO has not loaded its Bridge Master results since this page opened. Open the Bridge ' +
+			'Master dialog once (or finish a problem), then press Reset again.');
+		return;
+	}
+	var base = bmUdApi.url.split('?')[0];
+	var p = new URLSearchParams(bmUdApi.body);
+	p.set('c', 'kvset'); p.set('k', 'bm_results'); p.set('v', '');
+	var req = bmUdApi.get ? fetch(base + '?' + p.toString(), { credentials: 'include' })
+		: fetch(bmUdApi.url, { method: 'POST', credentials: 'include',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: p.toString() });
+	req.then(function (r) { return r.text().then(function (t) { return { ok: r.ok, text: t }; }); })
+		.then(function (r) {
+			var err = /\berr="(\d+)"/.exec(r.text);
+			if (!r.ok || (err && err[1] !== '0')) { cb('BBO answered: ' + r.text.slice(0, 200)); return; }
+			lobbyLog('Bridge Master: BBO record cleared (' + r.text.slice(0, 120) + ') - reloading');
+			if (alsoOurs) localStorage.removeItem(BM_RESULTS_KEY);
+			bmReplayStop();
+			location.reload();
+		})
+		.catch(function (e) { cb('request failed: ' + e.message); });
+}
+
+// ---- Replay failed ----------------------------------------------------------
+//
+// localStorage.BRILL_BM_REPLAY = { ids: ["2 A-12", ...], i: <index of the one being played> }.
+// Each failed problem whose BBO key was recorded is opened in turn; when it ends, the next
+// one is set up and the page reloads. Bridge Master keeps scoring the first attempt, so a
+// replay never turns a cross into a star; our own record keeps first and last apart.
+var BM_REPLAY_KEY = 'BRILL_BM_REPLAY';
+
+function bmReplayState() {
+	try { return JSON.parse(localStorage.getItem(BM_REPLAY_KEY) || 'null'); } catch (e) { return null; }
+}
+function bmReplayActive() { var s = bmReplayState(); return !!(s && s.ids && s.i < s.ids.length); }
+function bmReplayStop() { localStorage.removeItem(BM_REPLAY_KEY); }
+
+// The failed problems (first attempt, or 'last' to retry what still fails) we can get back to.
+function bmFailedIds(level, which) {
+	var all = bmLoadResults();
+	return Object.keys(all).filter(function (id) {
+		var r = all[id];
+		return (!level || r.level === +level) && r[which || 'first'] === 'failed' && r.key;
+	}).sort(function (a, b) { return bmSerial(a) - bmSerial(b); });
+}
+
+function bmReplayStart(level, which) {
+	var ids = bmFailedIds(level, which);
+	if (!ids.length) return 'no failed problems with a known BBO key' + (level ? ' on level ' + level : '') +
+		' (the key is recorded from version 0.14 on)';
+	localStorage.setItem(BM_REPLAY_KEY, JSON.stringify({ ids: ids, i: 0 }));
+	setBrillMode('bm');
+	bmReplayOpen(ids[0]);
+	return 'replaying ' + ids.length + ': ' + ids.join(', ');
+}
+
+function bmReplayOpen(id) {
+	var r = bmLoadResults()[id];
+	if (!r || !r.key) return;
+	localStorage.setItem(bmUserKey('bm_level'), String(r.level));
+	localStorage.setItem(bmUserKey('bm_deal'), r.key);
+	lobbyLog('Replay: opening Bridge Master ' + id + ' (' + r.key + ') - reloading');
+	setTimeout(function () { location.reload(); }, 500);
+}
+
+function bmReplayAdvance(doneId) {
+	var s = bmReplayState();
+	if (!s) return;
+	s.i++;
+	localStorage.setItem(BM_REPLAY_KEY, JSON.stringify(s));
+	if (s.i >= s.ids.length) {
+		var all = bmLoadResults(), made = s.ids.filter(function (id) { return all[id] && all[id].last === 'made'; });
+		lobbyLog('Replay done: ' + made.length + ' of ' + s.ids.length + ' made' +
+			(made.length ? ' (' + made.join(', ') + ')' : ''));
+		bmReplayStop();
+		setBrillMode('off');
+		return;
+	}
+	lobbyLog('Replay: ' + doneId + ' done, ' + (s.ids.length - s.i) + ' to go');
+	bmReplayOpen(s.ids[s.i]);
+}
+
+// ---- statistics ---------------------------------------------------------------
+function bmCsv() {
+	var all = bmLoadResults();
+	var cols = ['id', 'level', 'first', 'last', 'attempts', 'contract', 'server', 'at', 'ctx', 'played'];
+	var esc = function (v) { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+	return [cols.join(',')].concat(Object.keys(all).sort(function (a, b) { return bmSerial(a) - bmSerial(b); })
+		.map(function (id) { var r = all[id]; r.id = id; return cols.map(function (c) { return esc(r[c]); }).join(','); }))
+		.join('\n');
+}
+
+function bmDownload(name, text, type) {
+	var a = document.createElement('a');
+	a.href = URL.createObjectURL(new Blob([text], { type: type }));
+	a.download = name;
+	document.body.appendChild(a); a.click(); a.remove();
+}
+
+// ---------------------------------------------------------------- settings panel
+//
+// The gear left of the mode switch. Engine server (any Seat Robot API engine), Bridge Master
+// statistics, Replay failed, and the reset of BBO's stars.
+var SERVER_PRESETS = [
+	{ v: '', label: 'Brill (brillservice.aalborgdata.dk)' },
+	{ v: 'localssl', label: 'Brill, this PC (https://localhost:7200)' },
+	{ v: 'local', label: 'Brill, this PC (http://localhost:5200)' },
+	{ v: 'ben', label: 'BEN, this PC (http://localhost:8085)' },
+	{ v: 'custom', label: 'Other Seat Robot API server...' }
+];
+
+function ensureSettingsButton() {
+	if (localStorage.getItem('BRILL_HIDE_SWITCH') === '1') return;
+	if (!document.body || document.getElementById('brill-settings-gear')) return;
+	var g = document.createElement('div');
+	g.id = 'brill-settings-gear';
+	g.textContent = '⚙';
+	g.title = 'Brill settings: server, Bridge Master statistics, replay, reset';
+	g.style.cssText = 'position:fixed;right:8px;bottom:8px;z-index:2147483000;width:24px;height:24px;' +
+		'border-radius:12px;background:#444;color:#fff;font:16px/24px sans-serif;text-align:center;' +
+		'cursor:pointer;user-select:none;box-shadow:0 1px 4px rgba(0,0,0,.4);opacity:.9';
+	g.addEventListener('click', toggleSettingsPanel);
+	document.body.appendChild(g);
+}
+
+function toggleSettingsPanel() {
+	var p = document.getElementById('brill-settings-panel');
+	if (p) { p.remove(); return; }
+	p = document.createElement('div');
+	p.id = 'brill-settings-panel';
+	p.style.cssText = 'position:fixed;right:8px;bottom:40px;z-index:2147483001;width:340px;max-height:80vh;' +
+		'overflow:auto;padding:12px;border-radius:8px;background:#fff;color:#222;font:13px/1.4 sans-serif;' +
+		'box-shadow:0 2px 12px rgba(0,0,0,.35)';
+	document.body.appendChild(p);
+	renderSettingsPanel(p);
+}
+
+function renderSettingsPanel(p) {
+	var cur = localStorage.getItem('BRILL_SERVER') || '';
+	var preset = SERVER_PRESETS.some(function (x) { return x.v === cur && x.v !== 'custom'; }) ? cur : 'custom';
+	var extras = localStorage.getItem('BRILL_SERVER_EXTRAS') || '';
+	var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+	var sum = bmSummary(), levels = Object.keys(sum).sort();
+	var rows = levels.map(function (L) {
+		var s = sum[L];
+		return '<tr><td>' + L + '</td><td>' + s.played + '</td><td>' + s.made + '</td><td>' + s.failed +
+			'</td><td>' + (s.played ? Math.round(100 * s.made / s.played) + '%' : '') + '</td></tr>';
+	}).join('');
+	var rep = bmReplayState();
+	var btn = 'style="margin:2px 4px 2px 0;padding:2px 8px;cursor:pointer"';
+	p.innerHTML =
+		'<div style="font-weight:600;margin-bottom:6px">Engine server</div>' +
+		'<select id="bs-preset" style="width:100%">' + SERVER_PRESETS.map(function (x) {
+			return '<option value="' + x.v + '"' + (x.v === preset ? ' selected' : '') + '>' + esc(x.label) + '</option>';
+		}).join('') + '</select>' +
+		'<input id="bs-url" placeholder="https://host:port" style="width:100%;box-sizing:border-box;margin-top:4px" value="' +
+		esc(preset === 'custom' ? cur : '') + '">' +
+		'<input id="bs-token" type="password" placeholder="Bearer token (optional)" style="width:100%;box-sizing:border-box;margin-top:4px" value="' +
+		esc(localStorage.getItem('BRILL_SERVER_TOKEN') || '') + '">' +
+		'<div style="margin-top:4px">Brill extras (claim check, PBN saving): <select id="bs-extras">' +
+		'<option value=""' + (extras === '' ? ' selected' : '') + '>auto</option>' +
+		'<option value="1"' + (extras === '1' ? ' selected' : '') + '>on</option>' +
+		'<option value="0"' + (extras === '0' ? ' selected' : '') + '>off</option></select></div>' +
+		'<div style="margin-top:6px"><button id="bs-save" ' + btn + '>Save</button><button id="bs-test" ' + btn + '>Test</button>' +
+		'<span id="bs-msg" style="color:#555"></span></div>' +
+		'<div style="font-size:11px;color:#666">Now: ' + esc(bmServerName()) + '</div>' +
+		'<hr style="margin:10px 0">' +
+		'<div style="font-weight:600;margin-bottom:4px">Bridge Master (first attempts)</div>' +
+		(rows ? '<table style="width:100%;border-collapse:collapse;text-align:right"><tr><th style="text-align:right">Level</th>' +
+			'<th style="text-align:right">Played</th><th style="text-align:right">Made</th><th style="text-align:right">Failed</th>' +
+			'<th style="text-align:right">%</th></tr>' + rows + '</table>' : '<div style="color:#666">Nothing recorded yet.</div>') +
+		'<div style="margin-top:6px"><button id="bs-csv" ' + btn + '>Export CSV</button><button id="bs-json" ' + btn + '>Export JSON</button></div>' +
+		'<div style="margin-top:6px">Replay failed: <select id="bs-rlevel"><option value="">all levels</option>' +
+		levels.map(function (L) { return '<option value="' + L + '">level ' + L + '</option>'; }).join('') + '</select> ' +
+		'<select id="bs-rwhich"><option value="first">failed first time</option><option value="last">still failing</option></select></div>' +
+		'<div><button id="bs-replay" ' + btn + '>Start replay</button>' +
+		(rep ? '<button id="bs-rstop" ' + btn + '>Stop replay (' + Math.min(rep.i + 1, rep.ids.length) + '/' + rep.ids.length + ')</button>' : '') + '</div>' +
+		'<hr style="margin:10px 0">' +
+		'<div style="font-weight:600;margin-bottom:4px">Reset</div>' +
+		'<label><input id="bs-alsoours" type="checkbox" checked> also clear the record above</label><br>' +
+		'<button id="bs-reset" ' + btn + '>Reset BBO\'s Bridge Master stars</button>' +
+		'<div id="bs-rmsg" style="color:#a00"></div>';
+
+	var $id = function (x) { return p.querySelector('#' + x); };
+	var showUrl = function () { $id('bs-url').style.display = $id('bs-preset').value === 'custom' ? '' : 'none'; };
+	$id('bs-preset').addEventListener('change', showUrl); showUrl();
+	$id('bs-save').addEventListener('click', function () {
+		var v = $id('bs-preset').value;
+		if (v === 'custom') {
+			v = $id('bs-url').value.trim();
+			if (!/^https?:\/\//i.test(v)) { $id('bs-msg').textContent = ' URL must start with http(s)://'; return; }
+		}
+		if (v) localStorage.setItem('BRILL_SERVER', v); else localStorage.removeItem('BRILL_SERVER');
+		var t = $id('bs-token').value.trim();
+		if (t) localStorage.setItem('BRILL_SERVER_TOKEN', t); else localStorage.removeItem('BRILL_SERVER_TOKEN');
+		var x = $id('bs-extras').value;
+		if (x) localStorage.setItem('BRILL_SERVER_EXTRAS', x); else localStorage.removeItem('BRILL_SERVER_EXTRAS');
+		lobbyLog('server: ' + bmServerName() + (typeof brillServerHasExtras === 'function' && brillServerHasExtras() ? ' (Brill extras on)' : ' (Seat Robot API only)'));
+		renderSettingsPanel(p);
+		p.querySelector('#bs-msg').textContent = ' saved';
+	});
+	$id('bs-test').addEventListener('click', function () {
+		var m = $id('bs-msg'); m.textContent = ' testing...';
+		var t0 = Date.now();
+		fetch(bmServerName() + '/', typeof brillFetchOptions === 'function' ? brillFetchOptions() : { cache: 'no-store' })
+			.then(function (r) { m.textContent = ' ' + r.status + ' in ' + (Date.now() - t0) + ' ms'; })
+			.catch(function (e) { m.textContent = ' failed: ' + e.message + ' (down, or no CORS header?)'; });
+	});
+	$id('bs-csv').addEventListener('click', function () {
+		bmDownload('bridge-master-results-' + new Date().toISOString().slice(0, 10) + '.csv', bmCsv(), 'text/csv');
+	});
+	$id('bs-json').addEventListener('click', function () {
+		bmDownload('bridge-master-results-' + new Date().toISOString().slice(0, 10) + '.json',
+			JSON.stringify(bmLoadResults(), null, 1), 'application/json');
+	});
+	$id('bs-replay').addEventListener('click', function () {
+		var r = bmReplayStart($id('bs-rlevel').value, $id('bs-rwhich').value);
+		$id('bs-rmsg').textContent = r;
+	});
+	if ($id('bs-rstop')) $id('bs-rstop').addEventListener('click', function () {
+		bmReplayStop(); lobbyLog('Replay stopped'); renderSettingsPanel(p);
+	});
+	$id('bs-reset').addEventListener('click', function () {
+		if (!confirm('Clear all of BBO\'s Bridge Master stars and crosses for ' + (whoAmI() || 'this user') +
+			'? This cannot be undone, and the page reloads.')) return;
+		bmResetBbo($id('bs-alsoours').checked, function (err) { $id('bs-rmsg').textContent = err; });
+	});
 }
 
 // ---------------------------------------------------------------- mode switch
@@ -1638,6 +1911,12 @@ function bmModeIdle() {
 	}
 	if (!bmPickHinted) {
 		bmPickHinted = true;
+		var rs = bmReplayState();
+		if (rs && rs.i < rs.ids.length) {
+			lobbyLog('Replay ' + (rs.i + 1) + '/' + rs.ids.length + ': open Bridge Master - ' + rs.ids[rs.i] +
+				' should be the selected deal; from there it carries on by itself');
+			return;
+		}
 		var last = bmLastPlayed();
 		lobbyLog('mode Bridge Master - open Bridge Master and pick a deal' +
 			(last ? ' (last played: ' + last + ')' : '') + '; from there it carries on by itself');
@@ -1671,7 +1950,7 @@ function ensureModeButton() {
 	var b = document.createElement('div');
 	b.id = 'brill-mode-switch';
 	b.title = 'Click to switch: Off -> Dailies (challenges + daylongs) -> Bridge Master';
-	b.style.cssText = 'position:fixed;right:8px;bottom:8px;z-index:2147483000;padding:4px 10px;' +
+	b.style.cssText = 'position:fixed;right:38px;bottom:8px;z-index:2147483000;padding:4px 10px;' +
 		'border-radius:12px;color:#fff;font:600 13px/1.4 sans-serif;cursor:pointer;user-select:none;' +
 		'box-shadow:0 1px 4px rgba(0,0,0,.4);opacity:.9';
 	b.addEventListener('click', function () {
@@ -1685,7 +1964,7 @@ function ensureModeButton() {
 function lobbyTick() {
 	ensureObserver();
 	if (!scriptList.length && BRILL_SCRIPTS.length) setScriptList();   // backstop
-	try { ensureModeButton(); } catch (e) { }
+	try { ensureModeButton(); ensureSettingsButton(); } catch (e) { }
 	if (lobbyBusy) return;
 	if (bmEndBoxTick()) return;
 	if (atTable()) {

@@ -345,3 +345,21 @@ __brillDom.bmReset()            // start over
 
 Made/failed is read from the wording of BBO's end panel. Text the patterns do not recognise is
 stored as `unknown`, with the text itself, and the console line says so.
+
+#### Settings panel (the gear next to the pill)
+
+- **Engine server.** Brill, Brill on this PC, BEN on this PC (`http://localhost:8085`), or any
+  other server that implements the Seat Robot API (`GET /bid`, `/lead`, `/play`, as BEN does),
+  with an optional bearer token. **Test** sends `GET /` and shows the status, which also catches
+  a missing CORS header. `/claim` and `/pbn/finalize` exist only on Brill, so on another server
+  the opponents' claims are declined and the board is kept only in the browser's record. Each
+  result records the server it was played with, so engines can be compared.
+- **Statistics.** First-attempt score per level, and the whole record as CSV or JSON.
+- **Replay failed.** Opens each failed problem again, one after another (all levels or one;
+  failed the first time, or still failing). It sets BBO's `<user>_bm_level` / `<user>_bm_deal`
+  and reloads; open Bridge Master and the problem is the selected deal. Only problems played
+  with 0.14 or later can be replayed, since that is when the problem's BBO key is recorded.
+  BBO still scores the first attempt; the replay result goes in the record's `last` field.
+- **Reset BBO's Bridge Master stars.** Clears BBO's server-side record (`bm_results`, via
+  `ud_api.php`) and reloads the page. It reuses the session details from BBO's own call, so
+  open the Bridge Master dialog once after logging in first.

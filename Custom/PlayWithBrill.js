@@ -577,13 +577,41 @@ cardExists = function (card, array) {
 // mixed-content blocking, but that exemption has moved around between versions - if bids
 // silently stop arriving with 'local', check the console for a blocked request and switch
 // to 'localssl'.
+//   'ben'        http://localhost:8085                 - BEN's gameapi.py default port
+//
+// Any engine that implements the Seat Robot API (GET /bid, /lead, /play, BEN-compatible) can
+// take Brill's place. Two calls are Brill's own: /claim (is an opponent's claim right?) and
+// /pbn/finalize (save the finished board). For any other server they are skipped - claims
+// are declined, and the board is kept only in this browser's Bridge Master record.
+//   localStorage.BRILL_SERVER_EXTRAS = '1' | '0'   force the Brill-only calls on or off
+//   localStorage.BRILL_SERVER_TOKEN  = '<token>'   sent as "Authorization: Bearer <token>"
+// The switch's settings panel (the gear next to it) writes all three.
 getBrillBaseUrl = function () {
 	var s = localStorage.getItem('BRILL_SERVER');
 	if (!s) return 'https://brillservice.aalborgdata.dk';
 	if (/^https?:\/\//i.test(s)) return s.replace(/\/+$/, '');
 	if (s === 'local') return 'http://localhost:5200';
 	if (s === 'localssl') return 'https://localhost:7200';
+	if (s === 'ben') return 'http://localhost:8085';
 	return 'https://brillservice.aalborgdata.dk';
+}
+
+// True when the server is a Brill.Service, i.e. has /claim and /pbn/finalize.
+brillServerHasExtras = function () {
+	var x = localStorage.getItem('BRILL_SERVER_EXTRAS');
+	if (x === '1') return true;
+	if (x === '0') return false;
+	var s = localStorage.getItem('BRILL_SERVER') || '';
+	return !s || s === 'local' || s === 'localssl' || /brillservice\d*\.aalborgdata\.dk/i.test(s);
+}
+
+// fetch() options for every engine call: no caching, plus the bearer token when one is set.
+// A custom header makes the browser send a CORS preflight, so it is only added when needed.
+brillFetchOptions = function () {
+	var o = { cache: "no-store" };
+	var t = localStorage.getItem('BRILL_SERVER_TOKEN');
+	if (t) o.headers = { 'Authorization': 'Bearer ' + t };
+	return o;
 }
 // Which bidding system the server should READ and GENERATE each side's auction with.
 //
@@ -1337,9 +1365,7 @@ BrillsTurnToBid = function (overlay) {
 		url += getSystemParams()
 		console.log(getNow(true) + " BrillsTurnToBid Requesting " + url)
 		try {
-			fetch(url, {
-				cache: "no-store"
-			})
+			fetch(url, brillFetchOptions())
 				.then(function (response) {
 					console.log(getNow(true) + " BrillsTurnToBid Response from " + url)
 					// Check if the response is successful
@@ -1529,9 +1555,7 @@ BrillsTurnToPlay = function (overlay) {
 		url += getSystemParams()
 		console.log(getNow(true) + " BrillsTurnToPlay Requesting " + url)
 		try {
-			fetch(url, {
-				cache: "no-store"
-			})
+			fetch(url, brillFetchOptions())
 				.then(function (response) {
 					console.log(getNow(true) + " BrillsTurnToPlay Response from " + url)
 					// Check if the response is successful
@@ -1673,6 +1697,11 @@ validateClaimWithServer = function (panel, tricksClaimed, claimerDir, resultKind
 
 validateClaimWithServerInternal = function (panel, tricksClaimed, claimerDir, resultKind, resultDelta) {
 	try {
+		if (!brillServerHasExtras()) {
+			// Only Brill.Service has /claim; a Seat Robot API engine cannot check a claim.
+			answerClaim(panel, false, "server has no /claim (not a Brill server)");
+			return;
+		}
 		// Initialize deal struct from localStorage / fresh if not done yet
 		if (newdeal || !deal["number"]) {
 			if (typeof initdeal === "function") initdeal();
@@ -1746,7 +1775,7 @@ validateClaimWithServerInternal = function (panel, tricksClaimed, claimerDir, re
 		if (tournamentType != "") url += "&tournament=" + tournamentType;
 		url += getSystemParams();
 		console.log(getNow(true) + " validateClaim Requesting " + url);
-		fetch(url, { cache: "no-store" })
+		fetch(url, brillFetchOptions())
 			.then(function (response) {
 				console.log(getNow(true) + " validateClaim Response status: " + response.status);
 				if (!response.ok) {
@@ -1802,6 +1831,8 @@ sendFinalPlay = function () {
 
 sendFinalPlayInternal = function () {
 	if (finalPlaySent) return;
+	// Only Brill.Service has /pbn/finalize; other engines' boards stay in the browser's record.
+	if (!brillServerHasExtras()) { finalPlaySent = true; return; }
 	try {
 		// Make sure we've captured all played cards still visible on screen, then dedupe defensively
 		if (deal["played"]) {
@@ -1894,7 +1925,7 @@ sendFinalPlayInternal = function () {
 		if (handsPopulated < 3) {
 			console.warn(getNow(true) + " sendFinalPlay: only " + handsPopulated + "/4 hands populated - server may not be able to construct full PBN");
 		}
-		fetch(url, { cache: "no-store" })
+		fetch(url, brillFetchOptions())
 			.then(function (response) {
 				console.log(getNow(true) + " sendFinalPlay Response status: " + response.status);
 			})
