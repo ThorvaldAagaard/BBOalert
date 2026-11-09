@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Play BBO challenges with Brill
 // @namespace    https://github.com/ThorvaldAagaard/BBOalert
-// @version      0.15.4
+// @version      0.15.5
 // @description  Plays BBO challenges, allowlisted daylong tournaments and Bridge Master with Brill (robot challenges by default; humans opt-in). Standalone - no BBOalert extension needed.
 // @match        *://www.bridgebase.com/v3/*
 // @grant        none
@@ -4627,6 +4627,8 @@
 		// A solution movie.
 		var lin = doc.documentElement && doc.documentElement.getAttribute('lin');
 		if (lin && q.get('fetch_movie') === 'y' && q.get('handid')) {
+			// Keep BBO's own request, so the solutions of other problems can be fetched the same way.
+			if (!bmFetching) bmSaveJson(BM_MOVIE_REQ_KEY, { url: String(url), body: body || '' });
 			var sol = bmLoadJson(BM_SOLUTIONS_KEY);
 			if (!sol[q.get('handid')]) {
 				sol[q.get('handid')] = lin.replace(/@/g, '!');
@@ -4653,6 +4655,38 @@
 		var a = document.getElementById('bs-nkeys'), b = document.getElementById('bs-nsol');
 		if (a) a.textContent = Object.keys(bmLoadJson(BM_KEYS_KEY)).length;
 		if (b) b.textContent = Object.keys(bmLoadJson(BM_SOLUTIONS_KEY)).length;
+	}
+
+	// Fetch solutions by repeating BBO's own "Show solution" request (BRILL_BM_MOVIE_REQ, saved the
+	// first time BBO fetched one) with another problem's handid. One request every 1.5 s, only for
+	// the problems asked for (the failed ones), and never while Brill is playing them.
+	var BM_MOVIE_REQ_KEY = 'BRILL_BM_MOVIE_REQ', bmFetching = false;
+	function bmFetchSolutions(ids, done) {
+		var req = bmLoadJson(BM_MOVIE_REQ_KEY);
+		if (!req.url) { done('press Show solution on any problem once first, so the script learns the request BBO sends'); return; }
+		var keys = bmLoadJson(BM_KEYS_KEY), sol = bmLoadJson(BM_SOLUTIONS_KEY);
+		var todo = ids.filter(function (id) { return keys[id] && !sol[keys[id]]; });
+		if (!todo.length) { done('all ' + ids.length + ' already saved'); return; }
+		bmFetching = true;
+		var got = 0, i = 0;
+		(function next() {
+			if (i >= todo.length) { bmFetching = false; done('saved ' + got + ' of ' + todo.length); return; }
+			var id = todo[i++], h = keys[id];
+			var base = req.url.split('?')[0], qs = new URLSearchParams(req.body || (req.url.split('?')[1] || ''));
+			qs.set('handid', h); qs.set('fetch_movie', 'y');
+			var p = req.body
+				? fetch(base, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: qs.toString() })
+				: fetch(base + '?' + qs.toString(), { credentials: 'include' });
+			p.then(function (r) { return r.text(); })
+				.then(function (t) {
+					var before = Object.keys(bmLoadJson(BM_SOLUTIONS_KEY)).length;
+					bmHarvest(base + '?' + qs.toString(), '', t);
+					if (Object.keys(bmLoadJson(BM_SOLUTIONS_KEY)).length > before) got++;
+					else lobbyLog('Bridge Master: no solution in the answer for ' + id + ': ' + t.slice(0, 120));
+				})
+				.catch(function (e) { lobbyLog('Bridge Master: solution fetch failed for ' + id + ': ' + e.message); })
+				.then(function () { setTimeout(next, 1500); });
+		})();
 	}
 
 	function bmIdForKey(h) {
@@ -4946,6 +4980,7 @@
 				'<th style="text-align:right">%</th></tr>' + rows + '</table>' : '<div style="color:#666">Nothing recorded yet.</div>') +
 			'<div style="margin-top:6px"><button id="bs-csv" ' + btn + '>Export CSV</button><button id="bs-json" ' + btn + '>Export JSON</button>' +
 				'<button id="bs-sol" ' + btn + '>Solutions (<span id="bs-nsol">' + Object.keys(bmLoadJson(BM_SOLUTIONS_KEY)).length + '</span>)</button></div>' +
+			'<div><button id="bs-fetchsol" ' + btn + '>Fetch solutions of failed problems</button></div>' +
 			'<div style="font-size:11px;color:#666"><span id="bs-nkeys">' + Object.keys(bmLoadJson(BM_KEYS_KEY)).length + '</span> problem keys known</div>' +
 			'<div style="margin-top:6px">Replay failed: <select id="bs-rlevel"><option value="">all levels</option>' +
 			levels.map(function (L) { return '<option value="' + L + '">level ' + L + '</option>'; }).join('') + '</select> ' +
@@ -4995,6 +5030,10 @@
 			Object.keys(sol).forEach(function (h) { out[bmIdForKey(h) || h] = { handid: h, lin: sol[h] }; });
 			bmDownload('bridge-master-solutions-' + new Date().toISOString().slice(0, 10) + '.json',
 				JSON.stringify({ keys: keys, solutions: out }, null, 1), 'application/json');
+		});
+		$id('bs-fetchsol').addEventListener('click', function () {
+			var m = $id('bs-rmsg'); m.textContent = 'fetching solutions...';
+			bmFetchSolutions(bmFailedIds('', 'first'), function (r) { m.textContent = 'Solutions: ' + r; bmUpdatePanelCounts(); });
 		});
 		$id('bs-replay').addEventListener('click', function () {
 			var r = bmReplayStart($id('bs-rlevel').value, $id('bs-rwhich').value);
