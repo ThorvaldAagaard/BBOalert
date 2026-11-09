@@ -283,11 +283,13 @@ function harvestFrom(url, text) {
 		NativeXHR.prototype.send = function (body) {
 			var xhr = this;
 			try { bmWatchUdApi(xhr.__brillUrl, body, xhr); } catch (e) { }
+			xhr.__brillBody = typeof body === 'string' ? body : '';
 			xhr.addEventListener('load', function () {
 				try {
 					var rt = xhr.responseType;
 					if (rt && rt !== 'text') return;
 					harvestFrom(xhr.__brillUrl || '(xhr)', xhr.responseText);
+					bmHarvest(xhr.__brillUrl || '', xhr.__brillBody || '', xhr.responseText);
 				} catch (e) { lobbyLog('harvest', e); }
 			});
 			return send.apply(this, arguments);
@@ -304,7 +306,7 @@ function harvestFrom(url, text) {
 				var textish = !ct || ct.indexOf('xml') !== -1 || ct.indexOf('text') !== -1 ||
 					ct.indexOf('html') !== -1;
 				if (!textish) return;
-				r.clone().text().then(function (body) { harvestFrom(url, body); })
+				r.clone().text().then(function (body) { harvestFrom(url, body); bmHarvest(url, '', body); })
 					.catch(function () { });
 			}).catch(function () { });
 			return p;
@@ -1615,6 +1617,56 @@ function bmWatchUdApi(url, body, xhr) {
 	});
 }
 
+// ---- Bridge Master problem list and solutions ----------------------------------
+//
+// BBO's client gets both over plain HTTP from its web utilities (webUtilName_bridge_master):
+//   the problem list: elements with handid / level / setname / handnumber  ("A" + "1" = A-1)
+//   a solution:       handid=<key>&fetch_movie=y, answered with a "lin" attribute - the
+//                     solution movie, with Bridge Master's commentary (LIN nt| records)
+// We keep both: the key map lets "Replay failed" open any problem, and the solutions are the
+// intended lines to test the engine against offline. They are never sent to the engine while
+// it plays - Brill sees only what any declarer sees.
+var BM_KEYS_KEY = 'BRILL_BM_KEYS', BM_SOLUTIONS_KEY = 'BRILL_BM_SOLUTIONS';
+
+function bmLoadJson(k) { try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch (e) { return {}; } }
+function bmSaveJson(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { lobbyLog('could not save ' + k + ': ' + e); } }
+
+function bmHarvest(url, body, text) {
+	if (!text || typeof text !== 'string') return;
+	if (text.indexOf('handid') < 0 && text.indexOf('lin=') < 0) return;
+	var doc;
+	try { doc = new DOMParser().parseFromString(text, 'text/xml'); } catch (e) { return; }
+	if (!doc || doc.getElementsByTagName('parsererror').length) return;
+	var q = new URLSearchParams((String(url).split('?')[1] || '') + '&' + (body || ''));
+	// A solution movie.
+	var lin = doc.documentElement && doc.documentElement.getAttribute('lin');
+	if (lin && q.get('fetch_movie') === 'y' && q.get('handid')) {
+		var sol = bmLoadJson(BM_SOLUTIONS_KEY);
+		if (!sol[q.get('handid')]) {
+			sol[q.get('handid')] = lin.replace(/@/g, '!');
+			bmSaveJson(BM_SOLUTIONS_KEY, sol);
+			lobbyLog('Bridge Master: saved the solution of ' + (bmIdForKey(q.get('handid')) || q.get('handid')));
+		}
+		return;
+	}
+	// The problem list.
+	var els = doc.getElementsByTagName('*'), keys = bmLoadJson(BM_KEYS_KEY), n = 0;
+	for (var i = 0; i < els.length; i++) {
+		var e = els[i], h = e.getAttribute('handid'), L = e.getAttribute('level'),
+			set = e.getAttribute('setname'), num = e.getAttribute('handnumber');
+		if (!h || !L || !set || !num) continue;
+		var id = parseInt(L, 10) + ' ' + set.toUpperCase() + '-' + num;
+		if (keys[id] !== h) { keys[id] = h; n++; }
+	}
+	if (n) { bmSaveJson(BM_KEYS_KEY, keys); lobbyLog('Bridge Master: ' + n + ' problem keys learned (' + Object.keys(keys).length + ' known)'); }
+}
+
+function bmIdForKey(h) {
+	var keys = bmLoadJson(BM_KEYS_KEY);
+	for (var id in keys) if (keys[id] === h) return id;
+	return '';
+}
+
 function bmUserKey(name) { return myName() + '_' + name; }
 function bmDealKey() { try { return localStorage.getItem(bmUserKey('bm_deal')) || ''; } catch (e) { return ''; } }
 
@@ -1666,14 +1718,14 @@ function bmFailedIds(level, which) {
 	var all = bmLoadResults();
 	return Object.keys(all).filter(function (id) {
 		var r = all[id];
-		return (!level || r.level === +level) && r[which || 'first'] === 'failed' && r.key;
+		return (!level || r.level === +level) && r[which || 'first'] === 'failed' && bmDealValueFor(id);
 	}).sort(function (a, b) { return bmSerial(a) - bmSerial(b); });
 }
 
 function bmReplayStart(level, which) {
 	var ids = bmFailedIds(level, which);
 	if (!ids.length) return 'no failed problems with a known BBO key' + (level ? ' on level ' + level : '') +
-		' (the key is recorded from version 0.14 on)';
+		' (keys are learned when the Bridge Master deal list is opened, and recorded per problem from 0.14 on)';
 	localStorage.setItem(BM_REPLAY_KEY, JSON.stringify({ ids: ids, i: 0 }));
 	setBrillMode('bm');
 	bmReplayOpen(ids[0]);
@@ -1681,12 +1733,30 @@ function bmReplayStart(level, which) {
 }
 
 function bmReplayOpen(id) {
-	var r = bmLoadResults()[id];
-	if (!r || !r.key) return;
-	localStorage.setItem(bmUserKey('bm_level'), String(r.level));
-	localStorage.setItem(bmUserKey('bm_deal'), r.key);
-	lobbyLog('Replay: opening Bridge Master ' + id + ' (' + r.key + ') - reloading');
+	var v = bmDealValueFor(id);
+	if (!v) return;
+	localStorage.setItem(bmUserKey('bm_level'), String(parseInt(id, 10)));
+	localStorage.setItem(bmUserKey('bm_deal'), v);
+	lobbyLog('Replay: opening Bridge Master ' + id + ' (' + v + ') - reloading');
 	setTimeout(function () { location.reload(); }, 500);
+}
+
+// The value BBO keeps in <user>_bm_deal for a problem: as recorded when it was played, else
+// built from the learned handid in the same shape as a recorded one (a recorded "2/x.a18" for
+// handid "x.a18" teaches the "<prefix>" to put in front).
+function bmDealValueFor(id) {
+	var all = bmLoadResults();
+	if (all[id] && all[id].key) return all[id].key;
+	var keys = bmLoadJson(BM_KEYS_KEY), h = keys[id];
+	if (!h) return '';
+	for (var other in all) {
+		var k = all[other].key, oh = keys[other];
+		if (k && oh && k.slice(-oh.length) === oh) {
+			var prefix = k.slice(0, k.length - oh.length);
+			return /^\d+\//.test(prefix) ? parseInt(id, 10) + '/' + h : prefix + h;
+		}
+	}
+	return h;
 }
 
 function bmReplayAdvance(doneId) {
@@ -1795,7 +1865,9 @@ function renderSettingsPanel(p) {
 		(rows ? '<table style="width:100%;border-collapse:collapse;text-align:right"><tr><th style="text-align:right">Level</th>' +
 			'<th style="text-align:right">Played</th><th style="text-align:right">Made</th><th style="text-align:right">Failed</th>' +
 			'<th style="text-align:right">%</th></tr>' + rows + '</table>' : '<div style="color:#666">Nothing recorded yet.</div>') +
-		'<div style="margin-top:6px"><button id="bs-csv" ' + btn + '>Export CSV</button><button id="bs-json" ' + btn + '>Export JSON</button></div>' +
+		'<div style="margin-top:6px"><button id="bs-csv" ' + btn + '>Export CSV</button><button id="bs-json" ' + btn + '>Export JSON</button>' +
+			'<button id="bs-sol" ' + btn + '>Solutions (' + Object.keys(bmLoadJson(BM_SOLUTIONS_KEY)).length + ')</button></div>' +
+		'<div style="font-size:11px;color:#666">' + Object.keys(bmLoadJson(BM_KEYS_KEY)).length + ' problem keys known</div>' +
 		'<div style="margin-top:6px">Replay failed: <select id="bs-rlevel"><option value="">all levels</option>' +
 		levels.map(function (L) { return '<option value="' + L + '">level ' + L + '</option>'; }).join('') + '</select> ' +
 		'<select id="bs-rwhich"><option value="first">failed first time</option><option value="last">still failing</option></select></div>' +
@@ -1838,6 +1910,12 @@ function renderSettingsPanel(p) {
 	$id('bs-json').addEventListener('click', function () {
 		bmDownload('bridge-master-results-' + new Date().toISOString().slice(0, 10) + '.json',
 			JSON.stringify(bmLoadResults(), null, 1), 'application/json');
+	});
+	$id('bs-sol').addEventListener('click', function () {
+		var keys = bmLoadJson(BM_KEYS_KEY), sol = bmLoadJson(BM_SOLUTIONS_KEY), out = {};
+		Object.keys(sol).forEach(function (h) { out[bmIdForKey(h) || h] = { handid: h, lin: sol[h] }; });
+		bmDownload('bridge-master-solutions-' + new Date().toISOString().slice(0, 10) + '.json',
+			JSON.stringify({ keys: keys, solutions: out }, null, 1), 'application/json');
 	});
 	$id('bs-replay').addEventListener('click', function () {
 		var r = bmReplayStart($id('bs-rlevel').value, $id('bs-rwhich').value);

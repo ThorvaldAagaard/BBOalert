@@ -357,9 +357,14 @@ stored as `unknown`, with the text itself, and the console line says so.
 - **Statistics.** First-attempt score per level, and the whole record as CSV or JSON.
 - **Replay failed.** Opens each failed problem again, one after another (all levels or one;
   failed the first time, or still failing). It sets BBO's `<user>_bm_level` / `<user>_bm_deal`
-  and reloads; open Bridge Master and the problem is the selected deal. Only problems played
-  with 0.14 or later can be replayed, since that is when the problem's BBO key is recorded.
-  BBO still scores the first attempt; the replay result goes in the record's `last` field.
+  and reloads; open Bridge Master and the problem is the selected deal. BBO's key for each
+  problem is learned from the deal list BBO loads (from 0.15), and recorded per problem played
+  (from 0.14). BBO still scores the first attempt; the replay result goes in the record's
+  `last` field.
+- **Solutions.** When BBO fetches a problem's solution movie (`fetch_movie=y`), the script keeps
+  it (`localStorage.BRILL_BM_SOLUTIONS`, by BBO key) and **Solutions** downloads them all. They
+  are for testing the engine offline against the intended line; nothing is sent to the engine
+  while it plays.
 - **Reset BBO's Bridge Master stars.** Clears BBO's server-side record (`bm_results`, via
   `ud_api.php`) and reloads the page. It reuses the session details from BBO's own call, so
   open the Bridge Master dialog once after logging in first.
