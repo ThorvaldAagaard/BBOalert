@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Play BBO challenges with Brill
 // @namespace    https://github.com/ThorvaldAagaard/BBOalert
-// @version      0.15.3
+// @version      0.15.4
 // @description  Plays BBO challenges, allowlisted daylong tournaments and Bridge Master with Brill (robot challenges by default; humans opt-in). Standalone - no BBOalert extension needed.
 // @match        *://www.bridgebase.com/v3/*
 // @grant        none
@@ -3275,6 +3275,9 @@
 					var textish = !ct || ct.indexOf('xml') !== -1 || ct.indexOf('text') !== -1 ||
 						ct.indexOf('html') !== -1;
 					if (!textish) return;
+					// Never tee a stream: a clone of text/event-stream (SignalR's fallback transport)
+					// is read until the stream ends, and holding it can stall the real connection.
+					if (ct.indexOf('event-stream') !== -1 || /signalr|notifications|negotiate/i.test(url)) return;
 					r.clone().text().then(function (body) { harvestFrom(url, body); bmHarvest(url, '', body); })
 						.catch(function () { });
 				}).catch(function () { });
@@ -4813,7 +4816,7 @@
 			lobbyLog('Replay: open Bridge Master to continue with ' + target);
 			return true;
 		}
-		if (!atTable()) gotoPath(PRACTICE_PATH);
+		if (!atTable()) bmGoPractice('Replay');
 		return true;
 	}
 
@@ -5055,14 +5058,29 @@
 	// Bridge Master mode, away from a table. Get to the practice page (never leaving a table to
 	// do it - a challenge in progress finishes first), then say what to pick: which deal to open
 	// is a choice BBO's Select deal dialog makes, and that dialog has not been mapped.
+	// Getting to Practice is done by clicking BBO's own Practice link, never by changing the
+	// address (gotoPath). On 2026-11-09 a pushState to /v3/app/lv/practice made BBO log in again
+	// ("User is not connected /app/lv/practice", then sc_loginok on a new proxy), the new login
+	// dropped the old connection, the table vanished, and 30 s later the script navigated again:
+	// a disconnect every ~30 s. With no Practice link on screen it says so once and waits.
+	var bmPracticeHinted = false;
+	function bmGoPractice(why) {
+		if (Date.now() - bmGoAt < 30000) return;
+		bmGoAt = Date.now();
+		var link = bmFindText(PWD.body, /^practice$/i);
+		if (link) { lobbyLog(why + ' - clicking Practice'); link.click(); return; }
+		if (!bmPracticeHinted) {
+			bmPracticeHinted = true;
+			lobbyLog(why + ' - open Practice > Bridge Master (no Practice link on screen to click)');
+		}
+	}
+
 	function bmModeIdle() {
 		if (pagePath().indexOf(PRACTICE_PATH) !== 0) {
-			if (Date.now() - bmGoAt < 30000) return;
-			bmGoAt = Date.now();
-			lobbyLog('mode Bridge Master - going to Practice');
-			gotoPath(PRACTICE_PATH);
+			bmGoPractice('mode Bridge Master');
 			return;
 		}
+		bmPracticeHinted = false;
 		if (!bmPickHinted) {
 			bmPickHinted = true;
 			var rs = bmReplayState();
