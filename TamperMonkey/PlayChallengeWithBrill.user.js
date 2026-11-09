@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Play BBO challenges with Brill
 // @namespace    https://github.com/ThorvaldAagaard/BBOalert
-// @version      0.15.2
+// @version      0.15.3
 // @description  Plays BBO challenges, allowlisted daylong tournaments and Bridge Master with Brill (robot challenges by default; humans opt-in). Standalone - no BBOalert extension needed.
 // @match        *://www.bridgebase.com/v3/*
 // @grant        none
@@ -4572,6 +4572,20 @@
 	// Bridge Master on that problem - which is how "Replay failed" gets back to a problem.
 	var bmUdApi = null;        // { url, body } of the last bm_results call seen this session
 	var bmBboList = null;      // BBO's results string as last loaded or saved
+	try { bmBboList = localStorage.getItem('BRILL_BM_BBO_LIST'); } catch (e) { }
+	function bmSetBboList(v) { bmBboList = v; try { localStorage.setItem('BRILL_BM_BBO_LIST', v); } catch (e) { } }
+
+	// BBO's own verdicts, from its bm_results string ("1A-4?|2A-12N|..."): id -> 'Y' | 'N' | '?'.
+	// '?' is a problem left mid-play (half star). It is the record of truth for "what failed":
+	// ours may miss a problem that was cut off (1 A-4 on 2026-11-08 was never recorded as failed).
+	function bmBboVerdicts() {
+		var out = {};
+		(bmBboList || '').split('|').forEach(function (e) {
+			var m = /^(\d)([A-Z])-(\d+)([YN?])$/.exec(e.trim());
+			if (m) out[m[1] + ' ' + m[2] + '-' + m[3]] = m[4];
+		});
+		return out;
+	}
 
 	function bmWatchUdApi(url, body, xhr) {
 		url = String(url || '');
@@ -4580,9 +4594,9 @@
 		if (q.indexOf('bm_results') < 0) return;
 		var p = new URLSearchParams(q);
 		bmUdApi = { url: url, body: q, get: typeof body !== 'string' };
-		if (p.get('c') === 'kvset') bmBboList = p.get('v') || '';
+		if (p.get('c') === 'kvset') bmSetBboList(p.get('v') || '');
 		if (p.get('c') === 'kvget') xhr.addEventListener('load', function () {
-			try { var m = /\bv="([^"]*)"/.exec(xhr.responseText || ''); if (m) bmBboList = m[1]; } catch (e) { }
+			try { var m = /\bv="([^"]*)"/.exec(xhr.responseText || ''); if (m) bmSetBboList(m[1]); } catch (e) { }
 		});
 	}
 
@@ -4692,10 +4706,19 @@
 
 	// The failed problems (first attempt, or 'last' to retry what still fails) we can get back to.
 	function bmFailedIds(level, which) {
-		var all = bmLoadResults();
-		return Object.keys(all).filter(function (id) {
+		var all = bmLoadResults(), seen = {};
+		var ids = Object.keys(all).filter(function (id) {
 			var r = all[id];
-			return (!level || r.level === +level) && r[which || 'first'] === 'failed' && bmDealValueFor(id);
+			return r[which || 'first'] === 'failed';
+		});
+		// "failed first time" also takes what BBO itself marks failed (N) or unfinished (?).
+		if ((which || 'first') === 'first') {
+			var v = bmBboVerdicts();
+			Object.keys(v).forEach(function (id) { if (v[id] !== 'Y') ids.push(id); });
+		}
+		return ids.filter(function (id) {
+			if (seen[id]) return false; seen[id] = true;
+			return (!level || parseInt(id, 10) === +level) && bmDealValueFor(id);
 		}).sort(function (a, b) { return bmSerial(a) - bmSerial(b); });
 	}
 
