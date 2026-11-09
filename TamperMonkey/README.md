@@ -356,8 +356,11 @@ stored as `unknown`, with the text itself, and the console line says so.
   result records the server it was played with, so engines can be compared.
 - **Statistics.** First-attempt score per level, and the whole record as CSV or JSON.
 - **Replay failed.** Opens each failed problem again, one after another (all levels or one;
-  failed the first time, or still failing). It sets BBO's `<user>_bm_level` / `<user>_bm_deal`
-  and reloads; open Bridge Master and the problem is the selected deal. BBO's key for each
+  failed the first time, or still failing). It opens each one the way a person would: **Select
+  deal** on the Bridge Master panel, then the level, then the deal in BBO's dialog (from the
+  Practice page it opens Bridge Master first). No page reload, so BBO's "leave this page?"
+  prompt never appears. If a problem cannot be opened in about 100 s it stops and logs the
+  buttons it saw. BBO's key for each
   problem is learned from the deal list BBO loads (from 0.15), and recorded per problem played
   (from 0.14). BBO still scores the first attempt; the replay result goes in the record's
   `last` field.

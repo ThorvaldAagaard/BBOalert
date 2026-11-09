@@ -1646,6 +1646,7 @@ function bmHarvest(url, body, text) {
 			sol[q.get('handid')] = lin.replace(/@/g, '!');
 			bmSaveJson(BM_SOLUTIONS_KEY, sol);
 			lobbyLog('Bridge Master: saved the solution of ' + (bmIdForKey(q.get('handid')) || q.get('handid')));
+			bmUpdatePanelCounts();
 		}
 		return;
 	}
@@ -1658,7 +1659,14 @@ function bmHarvest(url, body, text) {
 		var id = parseInt(L, 10) + ' ' + set.toUpperCase() + '-' + num;
 		if (keys[id] !== h) { keys[id] = h; n++; }
 	}
-	if (n) { bmSaveJson(BM_KEYS_KEY, keys); lobbyLog('Bridge Master: ' + n + ' problem keys learned (' + Object.keys(keys).length + ' known)'); }
+	if (n) { bmSaveJson(BM_KEYS_KEY, keys); lobbyLog('Bridge Master: ' + n + ' problem keys learned (' + Object.keys(keys).length + ' known)'); bmUpdatePanelCounts(); }
+}
+
+// The settings panel draws its counts when it opens; keep them current while it is open.
+function bmUpdatePanelCounts() {
+	var a = document.getElementById('bs-nkeys'), b = document.getElementById('bs-nsol');
+	if (a) a.textContent = Object.keys(bmLoadJson(BM_KEYS_KEY)).length;
+	if (b) b.textContent = Object.keys(bmLoadJson(BM_SOLUTIONS_KEY)).length;
 }
 
 function bmIdForKey(h) {
@@ -1732,13 +1740,89 @@ function bmReplayStart(level, which) {
 	return 'replaying ' + ids.length + ': ' + ids.join(', ');
 }
 
+// Opening a problem is done on the page, the way a person does it: "Select deal" on the
+// Bridge Master panel opens BBO's dialog (<bridge-master-popup>), then the level button, then
+// the deal ("A-12"). No reload - a reload stops at BBO's "leave this page?" prompt.
+// bmReplayTick drives it, one step every couple of seconds; BBO's own <user>_bm_level and
+// _bm_deal are set as well, so a reload by hand would open the same problem.
+var bmPick = { target: '', step: '', at: 0, tries: 0 };
+
 function bmReplayOpen(id) {
 	var v = bmDealValueFor(id);
-	if (!v) return;
-	localStorage.setItem(bmUserKey('bm_level'), String(parseInt(id, 10)));
-	localStorage.setItem(bmUserKey('bm_deal'), v);
-	lobbyLog('Replay: opening Bridge Master ' + id + ' (' + v + ') - reloading');
-	setTimeout(function () { location.reload(); }, 500);
+	if (v) {
+		localStorage.setItem(bmUserKey('bm_level'), String(parseInt(id, 10)));
+		localStorage.setItem(bmUserKey('bm_deal'), v);
+	}
+	bmPick = { target: id, step: '', at: 0, tries: 0 };
+	lobbyLog('Replay: next is Bridge Master ' + id);
+}
+
+function bmReplayTarget() {
+	var s = bmReplayState();
+	return s && s.ids && s.i < s.ids.length ? s.ids[s.i] : '';
+}
+
+// Smallest visible element under root whose whole text matches re (the label itself, not a
+// container that happens to include it). Our own panel and pill never count.
+function bmFindText(root, re) {
+	var best = null;
+	$(root).find('*:visible').each(function () {
+		if (this.closest && this.closest('#brill-settings-panel, #brill-mode-switch, #brill-settings-gear')) return;
+		if (!re.test(norm($(this).text()))) return;
+		if (!best || $.contains(best, this)) best = this;
+	});
+	return best;
+}
+
+// True while it is working on getting the next replay problem open (lobbyTick then does
+// nothing else); false once that problem is on the table, so bridgeMasterTick plays it.
+function bmReplayTick() {
+	var target = bmReplayTarget();
+	if (!target) return false;
+	if (onBridgeMaster() && bmProblemId() === target) { bmPick.tries = 0; return false; }
+	if (bmPick.target !== target) bmPick = { target: target, step: '', at: 0, tries: 0 };
+	if (Date.now() - bmPick.at < 2500) return true;
+	bmPick.at = Date.now();
+	if (++bmPick.tries > 40) {
+		lobbyLog('Replay: could not open ' + target + ' - stopping. Buttons: ' + visibleButtonLabels());
+		bmReplayStop();
+		return false;
+	}
+	var level = parseInt(target, 10), label = target.split(' ')[1];
+	var popup = $('bridge-master-popup:visible', PWD);
+	if (popup.length) {
+		if (bmPick.step !== 'level') {
+			var lv = bmFindText(popup, new RegExp('^Level ?' + level + '(?![0-9])', 'i'));
+			if (lv) { lv.click(); bmPick.step = 'level'; return true; }
+		}
+		var cell = bmFindText(popup, new RegExp('^' + label.replace('-', ' ?- ?') + '$', 'i'));
+		if (cell) {
+			lobbyLog('Replay: opening ' + target);
+			cell.click(); bmPick.step = 'deal';
+			return true;
+		}
+		bmPick.step = '';            // list not there yet, or the level click did not take: again
+		return true;
+	}
+	// At a Bridge Master table on another problem (the one just finished): its "Select deal".
+	if (onBridgeMaster()) {
+		var sel = bmFindText(PWD.body, /^select deal$/i);
+		if (sel) { sel.click(); return true; }
+		lobbyLog('Replay: no "Select deal" button on the Bridge Master panel. Buttons: ' + visibleButtonLabels());
+		return true;
+	}
+	// The end-of-problem box ("Contract Failed / Play again / Leave table"): leave.
+	var leave = bmFindText(PWD.body, /^leave table$/i);
+	if (leave) { leave.click(); return true; }
+	// Practice page: open Bridge Master.
+	if (pagePath().indexOf(PRACTICE_PATH) === 0) {
+		var tile = bmFindText(PWD.body, /^bridge master$/i);
+		if (tile) { tile.click(); return true; }
+		lobbyLog('Replay: open Bridge Master to continue with ' + target);
+		return true;
+	}
+	if (!atTable()) gotoPath(PRACTICE_PATH);
+	return true;
 }
 
 // The value BBO keeps in <user>_bm_deal for a problem: as recorded when it was played, else
@@ -1866,8 +1950,8 @@ function renderSettingsPanel(p) {
 			'<th style="text-align:right">Played</th><th style="text-align:right">Made</th><th style="text-align:right">Failed</th>' +
 			'<th style="text-align:right">%</th></tr>' + rows + '</table>' : '<div style="color:#666">Nothing recorded yet.</div>') +
 		'<div style="margin-top:6px"><button id="bs-csv" ' + btn + '>Export CSV</button><button id="bs-json" ' + btn + '>Export JSON</button>' +
-			'<button id="bs-sol" ' + btn + '>Solutions (' + Object.keys(bmLoadJson(BM_SOLUTIONS_KEY)).length + ')</button></div>' +
-		'<div style="font-size:11px;color:#666">' + Object.keys(bmLoadJson(BM_KEYS_KEY)).length + ' problem keys known</div>' +
+			'<button id="bs-sol" ' + btn + '>Solutions (<span id="bs-nsol">' + Object.keys(bmLoadJson(BM_SOLUTIONS_KEY)).length + '</span>)</button></div>' +
+		'<div style="font-size:11px;color:#666"><span id="bs-nkeys">' + Object.keys(bmLoadJson(BM_KEYS_KEY)).length + '</span> problem keys known</div>' +
 		'<div style="margin-top:6px">Replay failed: <select id="bs-rlevel"><option value="">all levels</option>' +
 		levels.map(function (L) { return '<option value="' + L + '">level ' + L + '</option>'; }).join('') + '</select> ' +
 		'<select id="bs-rwhich"><option value="first">failed first time</option><option value="last">still failing</option></select></div>' +
@@ -2044,6 +2128,7 @@ function lobbyTick() {
 	if (!scriptList.length && BRILL_SCRIPTS.length) setScriptList();   // backstop
 	try { ensureModeButton(); ensureSettingsButton(); } catch (e) { }
 	if (lobbyBusy) return;
+	if (bmReplayTick()) return;
 	if (bmEndBoxTick()) return;
 	if (atTable()) {
 		if (onBridgeMaster()) { bridgeMasterTick(); idleOffListSince = 0; return; }
