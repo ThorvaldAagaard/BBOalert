@@ -1748,8 +1748,10 @@ function bmResetBbo(alsoOurs, cb) {
 	var base = bmUdApi.url.split('?')[0];
 	var p = new URLSearchParams(bmUdApi.body);
 	p.set('c', 'kvset'); p.set('k', 'bm_results'); p.set('v', '');
-	var req = bmUdApi.get ? fetch(base + '?' + p.toString(), { credentials: 'include' })
-		: fetch(bmUdApi.url, { method: 'POST', credentials: 'include',
+	// No cookies: ud_api.php answers "Access-Control-Allow-Origin: *", which a browser rejects
+	// for a credentialed request (NetworkError). u and sp in the body are the authentication.
+	var req = bmUdApi.get ? fetch(base + '?' + p.toString())
+		: fetch(bmUdApi.url, { method: 'POST',
 			headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: p.toString() });
 	req.then(function (r) { return r.text().then(function (t) { return { ok: r.ok, text: t }; }); })
 		.then(function (r) {
