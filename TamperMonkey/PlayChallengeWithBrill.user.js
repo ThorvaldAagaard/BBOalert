@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Play BBO challenges with Brill
 // @namespace    https://github.com/ThorvaldAagaard/BBOalert
-// @version      0.15.9
+// @version      0.15.12
 // @description  Plays BBO challenges, allowlisted daylong tournaments and Bridge Master with Brill (robot challenges by default; humans opt-in). Standalone - no BBOalert extension needed.
 // @match        *://www.bridgebase.com/v3/*
 // @grant        none
@@ -4393,12 +4393,74 @@
 	var BM_FAILED = /\b(down|fail(ed|ure)?|sorry|defeated|went off|unsuccessful|not made|did not make)\b/i;
 	var BM_MADE = /\b(made|making|success(ful)?|succeeded|well done|congratulations|correct|solved)\b/i;
 
+	// One record per engine. Brill's (brillservice*) stays in BRILL_BM_RESULTS; any other server's
+	// goes to BRILL_BM_RESULTS@<base url>[ <model_id>], so switching server switches the table and
+	// switching back brings the old one back. ourSystem= and the like do not start a new record.
+	function bmStoreName(server) {
+		server = String(server == null ? bmServerName() : server);
+		var base = server.split('?')[0].replace(/\/+$/, '');
+		if (!base || /brillservice\d*\.aalborgdata\.dk/i.test(base)) return '';
+		var m = /[?&]model_id=([^&#]+)/i.exec(server);
+		return base + (m ? ' ' + decodeURIComponent(m[1]) : '');
+	}
+	function bmResultsKey(name) {
+		if (name === undefined) name = bmStoreName();
+		return name ? BM_RESULTS_KEY + '@' + name : BM_RESULTS_KEY;
+	}
+	function bmReadStore(k) { try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch (e) { return {}; } }
+
+	// Records written before 0.15.12 all sit in BRILL_BM_RESULTS; move each one whose server is
+	// not Brill into its own engine's record (once per page load).
+	var bmStoresSplit = false;
+	function bmSplitStores() {
+		if (bmStoresSplit) return;
+		bmStoresSplit = true;
+		var legacy = bmReadStore(BM_RESULTS_KEY), moved = {}, n = 0;
+		Object.keys(legacy).forEach(function (id) {
+			var name = legacy[id].server ? bmStoreName(legacy[id].server) : '';
+			if (!name) return;
+			(moved[name] = moved[name] || {})[id] = legacy[id];
+			delete legacy[id]; n++;
+		});
+		if (!n) return;
+		Object.keys(moved).forEach(function (name) { bmMergeInto(bmResultsKey(name), moved[name]); });
+		try { localStorage.setItem(BM_RESULTS_KEY, JSON.stringify(legacy)); } catch (e) { }
+		lobbyLog('Bridge Master: moved ' + n + ' records to their own engine\'s record (' + Object.keys(moved).join(', ') + ')');
+	}
+
+	// Merge records into a store; on a clash the newer one (by .at) wins.
+	function bmMergeInto(k, recs) {
+		var cur = bmReadStore(k), n = 0;
+		Object.keys(recs).forEach(function (id) {
+			var r = recs[id];
+			if (!r || typeof r !== 'object') return;
+			if (!cur[id] || String(r.at || '') > String(cur[id].at || '')) { cur[id] = r; n++; }
+		});
+		try { localStorage.setItem(k, JSON.stringify(cur)); } catch (e) { lobbyLog('could not save results: ' + e); }
+		return n;
+	}
+
 	function bmLoadResults() {
-		try { return JSON.parse(localStorage.getItem(BM_RESULTS_KEY) || '{}') || {}; } catch (e) { return {}; }
+		bmSplitStores();
+		return bmReadStore(bmResultsKey());
 	}
 
 	function bmSaveResults(r) {
-		try { localStorage.setItem(BM_RESULTS_KEY, JSON.stringify(r)); } catch (e) { lobbyLog('could not save results: ' + e); }
+		try { localStorage.setItem(bmResultsKey(), JSON.stringify(r)); } catch (e) { lobbyLog('could not save results: ' + e); }
+	}
+
+	// Import an exported JSON: each record goes to the record of the server it names (a record
+	// without one to the current server's).
+	function bmImportResults(text) {
+		var data = JSON.parse(text), groups = {}, n = 0;
+		if (!data || typeof data !== 'object') throw new Error('not a results export');
+		Object.keys(data).forEach(function (id) {
+			if (!/^\d [A-Z]-\d+$/.test(id)) return;
+			var name = data[id] && data[id].server ? bmStoreName(data[id].server) : bmStoreName();
+			(groups[name] = groups[name] || {})[id] = data[id];
+		});
+		Object.keys(groups).forEach(function (name) { n += bmMergeInto(bmResultsKey(name), groups[name]); });
+		return { added: n, records: Object.keys(groups).map(function (g) { return (g || 'Brill') + ': ' + Object.keys(groups[g]).length; }) };
 	}
 
 	function bmClassify(text, why) {
@@ -4416,6 +4478,10 @@
 		var all = bmLoadResults();
 		var prev = all[id];
 		var level = parseInt(id, 10);
+		var key = bm.dealKey || bmDealKey();
+		// The deal from BBO's own replies: dealStart as the problem opened, deal as Bridge Master
+		// had it at the end (East-West after any cards it moved). Both PBN, North first.
+		var lay = bmLayout && (!key || bmLayout.handid === key) ? bmLayout : null;
 		all[id] = {
 			level: level,
 			first: prev ? prev.first : result,
@@ -4424,7 +4490,9 @@
 			at: new Date().toISOString(),
 			contract: norm($('.tricksPanelTricksLabelClass:visible', PWD).text()),
 			ctx: getContext(),
-			key: bm.dealKey || bmDealKey(),
+			key: key,
+			deal: lay ? bmLayoutPbn(lay.hands) : '',
+			dealStart: lay ? lay.start : '',
 			server: bmServerName(),
 			text: text.slice(0, 300),
 			why: why,
@@ -4618,6 +4686,32 @@
 	function bmLoadJson(k) { try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch (e) { return {}; } }
 	function bmSaveJson(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { lobbyLog('could not save ' + k + ': ' + e); } }
 
+	// "S789H345D6KC2345K" (ranks low to high per suit) -> "987.543.K6.K5432".
+	function bmPbnHand(s) {
+		var order = '23456789TJQKA', out = { S: '', H: '', D: '', C: '' }, suit = null;
+		String(s || '').toUpperCase().split('').forEach(function (c) {
+			if (out.hasOwnProperty(c)) suit = c; else if (suit && order.indexOf(c) >= 0) out[suit] += c;
+		});
+		var desc = function (x) { return x.split('').sort(function (a, b) { return order.indexOf(b) - order.indexOf(a); }).join(''); };
+		return [out.S, out.H, out.D, out.C].map(desc).join('.');
+	}
+
+	// The first reply of a problem has all four hands; later ones leave north and south empty and
+	// give east and west in full, as Bridge Master has them now (3/Duck3.a1: after HK-H3 the S2 had
+	// moved from East to West). prev is the layout so far, [N, E, S, W] in PBN hand form.
+	var bmLayout = null;   // { handid, hands: [N,E,S,W], start } of the problem being played
+	function bmMergeReply(el, prev) {
+		var out = (prev || ['', '', '', '']).slice();
+		['north', 'east', 'south', 'west'].forEach(function (k, i) {
+			var h = bmPbnHand(el.getAttribute(k));
+			if (h.replace(/\./g, '').length === 13) out[i] = h;
+		});
+		return out;
+	}
+	function bmLayoutPbn(hands) {
+		return hands && hands.every(function (h) { return h.replace(/\./g, '').length === 13; }) ? 'N:' + hands.join(' ') : '';
+	}
+
 	function bmHarvest(url, body, text) {
 		if (!text || typeof text !== 'string') return;
 		if (text.indexOf('handid') < 0 && text.indexOf('lin=') < 0) return;
@@ -4625,6 +4719,19 @@
 		try { doc = new DOMParser().parseFromString(text, 'text/xml'); } catch (e) { return; }
 		if (!doc || doc.getElementsByTagName('parsererror').length) return;
 		var q = new URLSearchParams((String(url).split('?')[1] || '') + '&' + (body || ''));
+		// A play reply (bm.php handid=&history=): BBO's Bridge Master server answers every card with
+		// all four hands, north="S789H345D6KC2345K" ..., which are the layout it is playing - after
+		// any cards it moved to beat the line taken. Kept for the record, so a problem cut short
+		// still has its full deal.
+		var bmx = doc.getElementsByTagName('sc_bridgemaster')[0];
+		if (bmx && q.get('fetch_movie') !== 'y') {
+			var h = (doc.documentElement && doc.documentElement.getAttribute('handid')) || q.get('handid') || '';
+			var fresh = !bmLayout || bmLayout.handid !== h || !q.get('history');
+			var hands = bmMergeReply(bmx, fresh ? null : bmLayout.hands);
+			if (fresh) bmLayout = { handid: h, hands: hands, start: bmLayoutPbn(hands) };
+			else bmLayout.hands = hands;
+			return;
+		}
 		// A solution movie.
 		var lin = doc.documentElement && doc.documentElement.getAttribute('lin');
 		if (lin && q.get('fetch_movie') === 'y' && q.get('handid')) {
@@ -4717,21 +4824,29 @@
 		var base = bmUdApi.url.split('?')[0];
 		var p = new URLSearchParams(bmUdApi.body);
 		p.set('c', 'kvset'); p.set('k', 'bm_results'); p.set('v', '');
-		// No cookies: ud_api.php answers "Access-Control-Allow-Origin: *", which a browser rejects
-		// for a credentialed request (NetworkError). u and sp in the body are the authentication.
-		var req = bmUdApi.get ? fetch(base + '?' + p.toString())
-			: fetch(bmUdApi.url, { method: 'POST',
-				headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: p.toString() });
-		req.then(function (r) { return r.text().then(function (t) { return { ok: r.ok, text: t }; }); })
-			.then(function (r) {
-				var err = /\berr="(\d+)"/.exec(r.text);
-				if (!r.ok || (err && err[1] !== '0')) { cb('BBO answered: ' + r.text.slice(0, 200)); return; }
-				lobbyLog('Bridge Master: BBO record cleared (' + r.text.slice(0, 120) + ') - reloading');
-				if (alsoOurs) localStorage.removeItem(BM_RESULTS_KEY);
-				bmReplayStop();
-				location.reload();
-			})
-			.catch(function (e) { cb('request failed: ' + e.message); });
+		// Sent as a plain XMLHttpRequest without cookies, exactly as BBO sends it: ud_api.php answers
+		// "Access-Control-Allow-Origin: *", which a browser rejects for a credentialed request, and
+		// fetch() on BBO's page went out credentialed even without credentials:'include' (0.15.9,
+		// NetworkError). u and sp in the body are the authentication.
+		var ver = (typeof GM_info !== 'undefined' && GM_info.script) ? ' [' + GM_info.script.version + ']' : '';
+		var xhr = new XMLHttpRequest();
+		xhr.withCredentials = false;
+		if (bmUdApi.get) xhr.open('GET', base + '?' + p.toString());
+		else {
+			xhr.open('POST', bmUdApi.url);
+			xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+		}
+		xhr.onload = function () {
+			var text = xhr.responseText || '';
+			var err = /\berr="(\d+)"/.exec(text);
+			if (xhr.status !== 200 || (err && err[1] !== '0')) { cb('BBO answered ' + xhr.status + ': ' + text.slice(0, 200) + ver); return; }
+			lobbyLog('Bridge Master: BBO record cleared (' + text.slice(0, 120) + ') - reloading');
+			if (alsoOurs) localStorage.removeItem(bmResultsKey());
+			bmReplayStop();
+			location.reload();
+		};
+		xhr.onerror = function () { cb('request failed (network or CORS; see the console)' + ver); };
+		xhr.send(bmUdApi.get ? null : p.toString());
 	}
 
 	// ---- Replay failed ----------------------------------------------------------
@@ -4899,7 +5014,7 @@
 	// ---- statistics ---------------------------------------------------------------
 	function bmCsv() {
 		var all = bmLoadResults();
-		var cols = ['id', 'level', 'first', 'last', 'attempts', 'contract', 'server', 'at', 'ctx', 'played'];
+		var cols = ['id', 'level', 'first', 'last', 'attempts', 'contract', 'server', 'at', 'ctx', 'deal', 'dealStart', 'played'];
 		var esc = function (v) { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
 		return [cols.join(',')].concat(Object.keys(all).sort(function (a, b) { return bmSerial(a) - bmSerial(b); })
 			.map(function (id) { var r = all[id]; r.id = id; return cols.map(function (c) { return esc(r[c]); }).join(','); }))
@@ -4983,10 +5098,12 @@
 			'<div style="font-size:11px;color:#666">Now: ' + esc(bmServerName()) + '</div>' +
 			'<hr style="margin:10px 0">' +
 			'<div style="font-weight:600;margin-bottom:4px">Bridge Master (first attempts; Latest = after replays)</div>' +
+			'<div style="font-size:11px;color:#666;margin-bottom:4px">Record of: ' + esc(bmStoreName() || 'Brill') + '</div>' +
 			(rows ? '<table style="width:100%;border-collapse:collapse;text-align:right"><tr><th style="text-align:right">Level</th>' +
 				'<th style="text-align:right">Played</th><th style="text-align:right">Made</th><th style="text-align:right">Failed</th>' +
 				'<th style="text-align:right">%</th><th style="text-align:right">Latest</th></tr>' + rows + '</table>' : '<div style="color:#666">Nothing recorded yet.</div>') +
 			'<div style="margin-top:6px"><button id="bs-csv" ' + btn + '>Export CSV</button><button id="bs-json" ' + btn + '>Export JSON</button>' +
+				'<button id="bs-import" ' + btn + '>Import JSON</button><input id="bs-importfile" type="file" accept=".json,application/json" style="display:none">' +
 				'<button id="bs-sol" ' + btn + '>Solutions (<span id="bs-nsol">' + Object.keys(bmLoadJson(BM_SOLUTIONS_KEY)).length + '</span>)</button></div>' +
 			'<div><button id="bs-fetchsol" ' + btn + '>Fetch solutions of failed problems</button></div>' +
 			'<div style="font-size:11px;color:#666"><span id="bs-nkeys">' + Object.keys(bmLoadJson(BM_KEYS_KEY)).length + '</span> problem keys known</div>' +
@@ -5032,6 +5149,23 @@
 		$id('bs-json').addEventListener('click', function () {
 			bmDownload('bridge-master-results-' + new Date().toISOString().slice(0, 10) + '.json',
 				JSON.stringify(bmLoadResults(), null, 1), 'application/json');
+		});
+		$id('bs-import').addEventListener('click', function () { $id('bs-importfile').click(); });
+		$id('bs-importfile').addEventListener('change', function () {
+			var f = this.files && this.files[0];
+			if (!f) return;
+			var rd = new FileReader();
+			rd.onload = function () {
+				var msg;
+				try {
+					var r = bmImportResults(String(rd.result));
+					msg = 'Imported ' + r.added + ' new or newer records (' + r.records.join('; ') + ')';
+				} catch (e) { msg = 'Import failed: ' + e.message; }
+				lobbyLog('Bridge Master: ' + msg);
+				renderSettingsPanel(p);
+				p.querySelector('#bs-rmsg').textContent = msg;
+			};
+			rd.readAsText(f);
 		});
 		$id('bs-sol').addEventListener('click', function () {
 			var keys = bmLoadJson(BM_KEYS_KEY), sol = bmLoadJson(BM_SOLUTIONS_KEY), out = {};
@@ -5693,7 +5827,7 @@
 			bmSaveResults(all);
 			return all[id];
 		},
-		bmReset: function () { localStorage.removeItem(BM_RESULTS_KEY); return 'cleared'; },
+		bmReset: function () { localStorage.removeItem(bmResultsKey()); return 'cleared'; },
 		activePlayer: function () { return getActivePlayer(); },
 		scripts: function () { return scriptList.length; },
 		hooks: function () {
