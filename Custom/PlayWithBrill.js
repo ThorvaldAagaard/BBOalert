@@ -586,14 +586,26 @@ cardExists = function (card, array) {
 //   localStorage.BRILL_SERVER_EXTRAS = '1' | '0'   force the Brill-only calls on or off
 //   localStorage.BRILL_SERVER_TOKEN  = '<token>'   sent as "Authorization: Bearer <token>"
 // The switch's settings panel (the gear next to it) writes all three.
+//
+// A query string on the URL is kept and added to every request (getServerQuery), which is how a
+// server hosting several engines is told which one to run, e.g.
+//   https://bridge.localgeek.jp/apis/brill?model_id=Creole&ourSystem=21GF-GIB&theirSystem=21GF-GIB
 getBrillBaseUrl = function () {
 	var s = localStorage.getItem('BRILL_SERVER');
 	if (!s) return 'https://brillservice.aalborgdata.dk';
-	if (/^https?:\/\//i.test(s)) return s.replace(/\/+$/, '');
+	if (/^https?:\/\//i.test(s)) return s.replace(/[?#].*$/, '').replace(/\/+$/, '');
 	if (s === 'local') return 'http://localhost:5200';
 	if (s === 'localssl') return 'https://localhost:7200';
 	if (s === 'ben') return 'http://localhost:8085';
 	return 'https://brillservice.aalborgdata.dk';
+}
+
+// The query string of a custom server URL, as "&a=b&c=d" ('' when there is none).
+getServerQuery = function () {
+	var s = localStorage.getItem('BRILL_SERVER') || '';
+	if (!/^https?:\/\//i.test(s)) return '';
+	var q = s.replace(/#.*$/, '').split('?')[1] || '';
+	return q ? '&' + q.replace(/^&+/, '') : '';
 }
 
 // True when the server is a Brill.Service, i.e. has /claim and /pbn/finalize.
@@ -645,7 +657,7 @@ getSystemParams = function () {
 	var ext = getExternalSeats();
 	if (ext) p += '&external=' + ext;
 	if (getPlayObjective() === 'make') p += '&objective=make';
-	return p;
+	return p + getServerQuery();
 }
 
 // objective=make: Bridge Master scores a problem as made or failed only, so Brill plays for the
@@ -1589,7 +1601,10 @@ BrillsTurnToPlay = function (overlay) {
 						// Re-check turn before clicking - state may have advanced during the fetch
 						var stillMyTurn = isMyTurnToPlay();
 						// Only claim as declarer or dummy. As defender we can only conceed
-						if (data.claim && (data.player == 1 || data.player == 3)) {
+						// Not on Bridge Master: it has no claim button, so every claim attempt waited
+						// 3 s for one and then played on - a 3 s pause on each card of a claimable ending.
+						var bridgeMasterTable = $("bridge-master-panel:visible", parent.window.document).length > 0;
+						if (data.claim && (data.player == 1 || data.player == 3) && !bridgeMasterTable) {
 							console.log(getNow(true) + " Claiming " + data.claim + " tricks")
 							makeClaim(data.claim, data.card, function (accepted) {
 								overlay = removeSpinner(overlay);

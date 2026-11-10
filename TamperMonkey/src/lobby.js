@@ -1475,8 +1475,9 @@ function bmSummary() {
 	var all = bmLoadResults(), out = {};
 	Object.keys(all).forEach(function (id) {
 		var r = all[id], L = r.level;
-		if (!out[L]) out[L] = { played: 0, made: 0, failed: 0, other: 0, size: BM_LEVEL_SIZE[L] || null, failedIds: [] };
+		if (!out[L]) out[L] = { played: 0, made: 0, failed: 0, other: 0, lastMade: 0, size: BM_LEVEL_SIZE[L] || null, failedIds: [] };
 		out[L].played++;
+		if (r.last === 'made') out[L].lastMade++;
 		if (r.first === 'made') out[L].made++;
 		else if (r.first === 'failed') { out[L].failed++; out[L].failedIds.push(id); }
 		else out[L].other++;
@@ -1730,7 +1731,11 @@ function bmUserKey(name) { return myName() + '_' + name; }
 function bmDealKey() { try { return localStorage.getItem(bmUserKey('bm_deal')) || ''; } catch (e) { return ''; } }
 
 function bmServerName() {
-	try { return typeof getBrillBaseUrl === 'function' ? getBrillBaseUrl() : ''; } catch (e) { return ''; }
+	try {
+		var base = typeof getBrillBaseUrl === 'function' ? getBrillBaseUrl() : '';
+		var q = typeof getServerQuery === 'function' ? getServerQuery() : '';
+		return base + (q ? '?' + q.slice(1) : '');
+	} catch (e) { return ''; }
 }
 
 // Clear BBO's stars and crosses. cb(error) - on success the page reloads instead.
@@ -1984,7 +1989,8 @@ function renderSettingsPanel(p) {
 	var rows = levels.map(function (L) {
 		var s = sum[L];
 		return '<tr><td>' + L + '</td><td>' + s.played + '</td><td>' + s.made + '</td><td>' + s.failed +
-			'</td><td>' + (s.played ? Math.round(100 * s.made / s.played) + '%' : '') + '</td></tr>';
+			'</td><td>' + (s.played ? Math.round(100 * s.made / s.played) + '%' : '') +
+			'</td><td>' + (s.played ? Math.round(100 * s.lastMade / s.played) + '%' : '') + '</td></tr>';
 	}).join('');
 	var rep = bmReplayState();
 	var btn = 'style="margin:2px 4px 2px 0;padding:2px 8px;cursor:pointer"';
@@ -2005,10 +2011,10 @@ function renderSettingsPanel(p) {
 		'<span id="bs-msg" style="color:#555"></span></div>' +
 		'<div style="font-size:11px;color:#666">Now: ' + esc(bmServerName()) + '</div>' +
 		'<hr style="margin:10px 0">' +
-		'<div style="font-weight:600;margin-bottom:4px">Bridge Master (first attempts)</div>' +
+		'<div style="font-weight:600;margin-bottom:4px">Bridge Master (first attempts; Latest = after replays)</div>' +
 		(rows ? '<table style="width:100%;border-collapse:collapse;text-align:right"><tr><th style="text-align:right">Level</th>' +
 			'<th style="text-align:right">Played</th><th style="text-align:right">Made</th><th style="text-align:right">Failed</th>' +
-			'<th style="text-align:right">%</th></tr>' + rows + '</table>' : '<div style="color:#666">Nothing recorded yet.</div>') +
+			'<th style="text-align:right">%</th><th style="text-align:right">Latest</th></tr>' + rows + '</table>' : '<div style="color:#666">Nothing recorded yet.</div>') +
 		'<div style="margin-top:6px"><button id="bs-csv" ' + btn + '>Export CSV</button><button id="bs-json" ' + btn + '>Export JSON</button>' +
 			'<button id="bs-sol" ' + btn + '>Solutions (<span id="bs-nsol">' + Object.keys(bmLoadJson(BM_SOLUTIONS_KEY)).length + '</span>)</button></div>' +
 		'<div><button id="bs-fetchsol" ' + btn + '>Fetch solutions of failed problems</button></div>' +
@@ -2045,7 +2051,7 @@ function renderSettingsPanel(p) {
 	$id('bs-test').addEventListener('click', function () {
 		var m = $id('bs-msg'); m.textContent = ' testing...';
 		var t0 = Date.now();
-		fetch(bmServerName() + '/', typeof brillFetchOptions === 'function' ? brillFetchOptions() : { cache: 'no-store' })
+		fetch(getBrillBaseUrl() + '/', typeof brillFetchOptions === 'function' ? brillFetchOptions() : { cache: 'no-store' })
 			.then(function (r) { m.textContent = ' ' + r.status + ' in ' + (Date.now() - t0) + ' ms'; })
 			.catch(function (e) { m.textContent = ' failed: ' + e.message + ' (down, or no CORS header?)'; });
 	});
@@ -2068,7 +2074,8 @@ function renderSettingsPanel(p) {
 	});
 	$id('bs-replay').addEventListener('click', function () {
 		var r = bmReplayStart($id('bs-rlevel').value, $id('bs-rwhich').value);
-		$id('bs-rmsg').textContent = r;
+		renderSettingsPanel(p);                       // so the Stop replay button appears now
+		p.querySelector('#bs-rmsg').textContent = r;
 	});
 	if ($id('bs-rstop')) $id('bs-rstop').addEventListener('click', function () {
 		bmReplayStop(); lobbyLog('Replay stopped'); renderSettingsPanel(p);
