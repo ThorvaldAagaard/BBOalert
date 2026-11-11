@@ -660,6 +660,25 @@ getSystemParams = function () {
 	return p + getServerQuery();
 }
 
+// Is this a Bridge Master table? One test for every Bridge Master behaviour (objective=make,
+// external=NESW, IMP scoring, no claims). The panel alone is not enough: on 2026-11-11 a Friend
+// Challenge vs twooneben (board 13, 6D) was played with objective=make and external=NESW on
+// every card -- the bridge-master-panel still counted as visible, most likely left over from an
+// earlier Bridge Master session -- so Brill played a hopeless slam for "make or fail" and went
+// down 5 where it is down 2. A table whose title names a challenge, tournament or match is never
+// Bridge Master. The verdict is logged whenever it changes.
+var lastBridgeMasterVerdict = null;
+isBridgeMasterTable = function () {
+	var verdict = $("bridge-master-panel:visible", parent.window.document).length > 0;
+	var title = $("nav-bar h2.titleClass", parent.window.document).first().text().trim();
+	if (verdict && /challenge|tournament|team|match|daylong|duplicate|robot/i.test(title)) verdict = false;
+	if (verdict !== lastBridgeMasterVerdict) {
+		lastBridgeMasterVerdict = verdict;
+		console.log(getNow(true) + " Bridge Master table: " + verdict + (title ? " (title: " + title + ")" : ""));
+	}
+	return verdict;
+}
+
 // objective=make: Bridge Master scores a problem as made or failed only, so Brill plays for the
 // contract and nothing else - no overtrick may cost make chance. Bridge Master Level 1 B-18
 // (6NT): on normal IMP scoring Brill cashed DK (4.13 IMPs, 70%) instead of starting clubs (1.97,
@@ -668,7 +687,7 @@ getSystemParams = function () {
 getPlayObjective = function () {
 	var o = (localStorage.getItem('BRILL_OBJECTIVE') || '').toLowerCase();
 	if (o === 'make' || o === 'score') return o;
-	return $("bridge-master-panel:visible", parent.window.document).length ? 'make' : 'score';
+	return isBridgeMasterTable() ? 'make' : 'score';
 }
 
 // external= names the seats whose calls came from a human or a foreign engine; the sampler then
@@ -683,7 +702,7 @@ getPlayObjective = function () {
 getExternalSeats = function () {
 	var o = localStorage.getItem('BRILL_EXTERNAL');
 	if (o !== null) return o.toUpperCase().replace(/[^NESW]/g, '');
-	if ($("bridge-master-panel:visible", parent.window.document).length) return 'NESW';
+	if (isBridgeMasterTable()) return 'NESW';
 	var me = mySeat();
 	return 'NESW'.replace(me, '');
 }
@@ -1603,7 +1622,7 @@ BrillsTurnToPlay = function (overlay) {
 						// Only claim as declarer or dummy. As defender we can only conceed
 						// Not on Bridge Master: it has no claim button, so every claim attempt waited
 						// 3 s for one and then played on - a 3 s pause on each card of a claimable ending.
-						var bridgeMasterTable = $("bridge-master-panel:visible", parent.window.document).length > 0;
+						var bridgeMasterTable = isBridgeMasterTable();
 						if (data.claim && (data.player == 1 || data.player == 3) && !bridgeMasterTable) {
 							console.log(getNow(true) + " Claiming " + data.claim + " tricks")
 							makeClaim(data.claim, data.card, function (accepted) {
@@ -1978,7 +1997,7 @@ savedeal = function (dealnumber, deal) {
 getTournamentType = function() {
 	// Bridge Master is "make the contract": overtricks are worthless and safety plays are the
 	// point, which is IMP scoring. Its table has no score panel to read it from.
-	if ($("bridge-master-panel:visible", parent.window.document).length) return "IMP";
+	if (isBridgeMasterTable()) return "IMP";
 	let text =$("#navDiv score-panel, #navDiv .score-panel", parent.window.document).text().toLowerCase();
 	if (text.indexOf("imp") > -1) return "IMP";
 	if (text.indexOf("mp") > -1) return "MP";
