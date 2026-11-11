@@ -1453,10 +1453,19 @@ function bmSplitStores() {
 		(moved[name] = moved[name] || {})[id] = legacy[id];
 		delete legacy[id]; n++;
 	});
-	if (!n) return;
-	Object.keys(moved).forEach(function (name) { bmMergeInto(bmResultsKey(name), moved[name]); });
-	try { localStorage.setItem(BM_RESULTS_KEY, JSON.stringify(legacy)); } catch (e) { }
-	lobbyLog('Bridge Master: moved ' + n + ' records to their own engine\'s record (' + Object.keys(moved).join(', ') + ')');
+	if (n) {
+		Object.keys(moved).forEach(function (name) { bmMergeInto(bmResultsKey(name), moved[name]); });
+		try { localStorage.setItem(BM_RESULTS_KEY, JSON.stringify(legacy)); } catch (e) { }
+		lobbyLog('Bridge Master: moved ' + n + ' records to their own engine\'s record (' + Object.keys(moved).join(', ') + ')');
+	}
+	// Once per page load, every engine's record: verdicts the cards contradict.
+	Object.keys(localStorage).forEach(function (k) {
+		if (k !== BM_RESULTS_KEY && k.indexOf(BM_RESULTS_KEY + '@') !== 0) return;
+		var recs = bmReadStore(k), fixed = bmRepairResults(recs);
+		if (!fixed) return;
+		try { localStorage.setItem(k, JSON.stringify(recs)); } catch (e) { }
+		lobbyLog('Bridge Master: ' + fixed + ' verdicts in ' + k + ' corrected from the cards played');
+	});
 }
 
 // Merge records into a store; on a clash the newer one (by .at) wins.
@@ -1501,10 +1510,52 @@ function bmClassify(text, why) {
 	return 'unknown';
 }
 
+// made/failed from the cards themselves: the contract from the auction (ctx, "1D--2N--3N------"),
+// North-South's tricks from the cards played, with a card's side taken from the starting deal
+// (Bridge Master moves cards only between East and West). '' when the cards do not settle it -
+// a claim or a stop before the outcome was certain - and the end text has to decide.
+// On 2026-11-11 the end text said "failed" for 50 of the 105 Level 2 failures from 2 A-26 on,
+// although North-South had taken their tricks: a stale "Contract Failed" stayed on screen.
+function bmTrickVerdict(ctx, dealPbn, played) {
+	var bids = String(ctx || '').match(/[1-7][CDHSN]/g);
+	var hands = /^N:(\S+) (\S+) (\S+) (\S+)$/.exec(String(dealPbn || ''));
+	var cards = String(played || '').split(/\s+/).filter(Boolean);
+	if (!bids || !hands || !cards.length) return '';
+	var trump = bids[bids.length - 1][1], need = +bids[bids.length - 1][0] + 6;
+	var ns = {};
+	[hands[1], hands[3]].forEach(function (h) {
+		h.split('.').forEach(function (s, i) { s.split('').forEach(function (c) { ns['SHDC'[i] + c] = 1; }); });
+	});
+	var R = '23456789TJQKA', won = 0, full = cards.length - cards.length % 4;
+	for (var t = 0; t < full; t += 4) {
+		var trick = cards.slice(t, t + 4), led = trick[0][0], best = trick[0];
+		var rank = function (c) { return (c[0] === trump ? 200 : c[0] === led ? 100 : 0) + R.indexOf(c[1]); };
+		trick.forEach(function (c) { if (rank(c) > rank(best)) best = c; });
+		if (ns[best]) won++;
+	}
+	if (won >= need) return 'made';
+	if (won + 13 - full / 4 < need) return 'failed';
+	return '';
+}
+
+// Put right the stored verdicts the cards contradict. Only a record from a single attempt has
+// the cards of its first attempt; a replayed one gets only .last put right. Old values are kept
+// in .textFirst / .textLast.
+function bmRepairResults(all) {
+	var n = 0;
+	Object.keys(all).forEach(function (id) {
+		var r = all[id];
+		var v = r && bmTrickVerdict(r.ctx, r.dealStart || r.deal, r.played);
+		if (!v) return;
+		if (r.last !== v && r.last !== 'stalled') { r.textLast = r.textLast || r.last; r.last = v; n++; }
+		if (r.attempts === 1 && r.first !== v && r.first !== 'stalled') { r.textFirst = r.textFirst || r.first; r.first = v; n++; }
+	});
+	return n;
+}
+
 function bmRecord(id, why) {
 	if (!id) return;
 	var text = bmEndPanelText();
-	var result = bmClassify(text, why);
 	var played = (typeof deal !== 'undefined' && deal && deal.played) ? deal.played.join(' ') : '';
 	var all = bmLoadResults();
 	var prev = all[id];
@@ -1513,6 +1564,13 @@ function bmRecord(id, why) {
 	// The deal from BBO's own replies: dealStart as the problem opened, deal as Bridge Master
 	// had it at the end (East-West after any cards it moved). Both PBN, North first.
 	var lay = bmLayout && (!key || bmLayout.handid === key) ? bmLayout : null;
+	var textResult = bmClassify(text, why);
+	var cardResult = lay ? bmTrickVerdict(getContext(), lay.start, played) : '';
+	var result = cardResult || textResult;
+	if (cardResult && textResult !== cardResult) {
+		lobbyLog('Bridge Master ' + id + ': end text says ' + textResult + ' ("' + text.slice(0, 120) +
+			'") but the cards say ' + cardResult + ' - going by the cards');
+	}
 	all[id] = {
 		level: level,
 		first: prev ? prev.first : result,
@@ -1525,6 +1583,7 @@ function bmRecord(id, why) {
 		deal: lay ? bmLayoutPbn(lay.hands) : '',
 		dealStart: lay ? lay.start : '',
 		server: bmServerName(),
+		textResult: textResult,
 		text: text.slice(0, 300),
 		why: why,
 		played: played
