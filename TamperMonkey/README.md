@@ -355,15 +355,19 @@ stored as `unknown`, with the text itself, and the console line says so.
   the opponents' claims are declined and the board is kept only in the browser's record. Each
   result records the server it was played with, so engines can be compared.
 - **Statistics.** First-attempt score per level, and the whole record as CSV or JSON.
-- **Replay failed.** Opens each failed problem again, one after another (all levels or one;
-  failed the first time, or still failing). It opens each one the way a person would: **Select
-  deal** on the Bridge Master panel, then the level, then the deal in BBO's dialog (from the
-  Practice page it opens Bridge Master first). No page reload, so BBO's "leave this page?"
-  prompt never appears. If a problem cannot be opened in about 100 s it stops and logs the
-  buttons it saw. BBO's key for each
-  problem is learned from the deal list BBO loads (from 0.15), and recorded per problem played
-  (from 0.14). BBO still scores the first attempt; the replay result goes in the record's
-  `last` field.
+- **Replay failed.** Opens each problem again, one after another (all levels or one;
+  **not cleared yet**, the default, or failed the first time). "Not cleared yet" means the
+  latest attempt was not made: BBO's own star decides where BBO has the problem (no star, or
+  left mid-play), and the record's `last` field decides the rest. It opens each one the way a
+  person would: **Select deal** on the Bridge Master panel, then the level, then the deal in
+  BBO's dialog (from the Practice page it opens Bridge Master first). No page reload, so BBO's
+  "leave this page?" prompt never appears. If a problem cannot be opened in about 100 s it
+  stops and logs the buttons it saw. BBO's key for each problem is learned from the deal list
+  BBO loads (from 0.15), and recorded per problem played (from 0.14). BBO's star shows the
+  latest attempt; the replay result goes in the record's `last` field. "Failed the first time"
+  (for engine statistics) comes from the record's `first` field; BBO's marks are added only for
+  problems the record has no first attempt for, so a replay that fails no longer lists a
+  problem that was made the first time (0.15.15).
 - **Solutions.** When BBO fetches a problem's solution movie (`fetch_movie=y`), the script keeps
   it (`localStorage.BRILL_BM_SOLUTIONS`, by BBO key) and **Solutions** downloads them all. They
   are for testing the engine offline against the intended line; nothing is sent to the engine

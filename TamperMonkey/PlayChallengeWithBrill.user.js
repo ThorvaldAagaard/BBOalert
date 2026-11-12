@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Play BBO challenges with Brill
 // @namespace    https://github.com/ThorvaldAagaard/BBOalert
-// @version      0.15.14
+// @version      0.15.15
 // @description  Plays BBO challenges, allowlisted daylong tournaments and Bridge Master with Brill (robot challenges by default; humans opt-in). Standalone - no BBOalert extension needed.
 // @match        *://www.bridgebase.com/v3/*
 // @grant        none
@@ -4922,17 +4922,28 @@
 	function bmReplayActive() { var s = bmReplayState(); return !!(s && s.ids && s.i < s.ids.length); }
 	function bmReplayStop() { localStorage.removeItem(BM_REPLAY_KEY); }
 
-	// The failed problems (first attempt, or 'last' to retry what still fails) we can get back to.
+	// The problems to replay that we can get back to:
+	//   'last' (default) - not cleared yet: the latest attempt was not made. BBO's bm_results
+	//                      string holds the latest attempt (its star), so where BBO has an entry it
+	//                      decides (N, or ? = left mid-play); our record's `last` decides the rest.
+	//   'first'          - failed the first time (engine statistics).
 	function bmFailedIds(level, which) {
-		var all = bmLoadResults(), seen = {};
-		var ids = Object.keys(all).filter(function (id) {
-			var r = all[id];
-			return r[which || 'first'] === 'failed';
-		});
-		// "failed first time" also takes what BBO itself marks failed (N) or unfinished (?).
-		if ((which || 'first') === 'first') {
-			var v = bmBboVerdicts();
-			Object.keys(v).forEach(function (id) { if (v[id] !== 'Y') ids.push(id); });
+		var all = bmLoadResults(), v = bmBboVerdicts(), seen = {}, ids;
+		if ((which || 'last') === 'last') {
+			ids = Object.keys(v).filter(function (id) { return v[id] !== 'Y'; });
+			Object.keys(all).forEach(function (id) {
+				if (!v[id] && all[id].last && all[id].last !== 'made') ids.push(id);
+			});
+		} else {
+			ids = Object.keys(all).filter(function (id) { return all[id].first === 'failed'; });
+			// "failed first time" also takes what BBO marks failed (N) or unfinished (?), but only
+			// for problems our record has no first attempt for (play cut off before it was recorded,
+			// e.g. 1 A-4 on 2026-11-08). BBO's string holds only the LATEST attempt: a replay that
+			// fails or is interrupted turns a 'Y' into 'N' or '?', so where we did record the first
+			// attempt, our record wins - a problem made first time is never listed here.
+			Object.keys(v).forEach(function (id) {
+				if (v[id] !== 'Y' && !(all[id] && all[id].first)) ids.push(id);
+			});
 		}
 		return ids.filter(function (id) {
 			if (seen[id]) return false; seen[id] = true;
@@ -5168,7 +5179,7 @@
 			'<div style="font-size:11px;color:#666"><span id="bs-nkeys">' + Object.keys(bmLoadJson(BM_KEYS_KEY)).length + '</span> problem keys known</div>' +
 			'<div style="margin-top:6px">Replay failed: <select id="bs-rlevel"><option value="">all levels</option>' +
 			levels.map(function (L) { return '<option value="' + L + '">level ' + L + '</option>'; }).join('') + '</select> ' +
-			'<select id="bs-rwhich"><option value="first">failed first time</option><option value="last">still failing</option></select></div>' +
+			'<select id="bs-rwhich"><option value="last">not cleared yet</option><option value="first">failed first time</option></select></div>' +
 			'<div><button id="bs-replay" ' + btn + '>Start replay</button>' +
 			(rep ? '<button id="bs-rstop" ' + btn + '>Stop replay (' + Math.min(rep.i + 1, rep.ids.length) + '/' + rep.ids.length + ')</button>' : '') + '</div>' +
 			'<hr style="margin:10px 0">' +
